@@ -400,11 +400,30 @@
       }, 1000);
     }
 
+    let lastTap = 0;
+
+    function resetTimer() {
+      clearInterval(timerId);
+      timerId = null;
+      timeLeft = 0;
+      initialTime = 0;
+      isRunning = false;
+      releaseWakeLock();
+      characterImg.classList.remove('hurry');
+      updateDisplay();
+      
+      // 視覚的フィードバック（数字を少し揺らす）
+      timeDisplay.style.animation = 'none';
+      timeDisplay.offsetHeight; // 強制再レンダリング
+      timeDisplay.style.animation = 'shake 0.3s ease-in-out';
+    }
+
     function toggleTimer() {
       if (timeLeft <= 0) return;
       
       if (isRunning) {
         clearInterval(timerId);
+        timerId = null;
         isRunning = false;
         releaseWakeLock();
         characterImg.classList.remove('hurry');
@@ -421,6 +440,7 @@
           timeLeft--;
           if (timeLeft <= 0) {
             clearInterval(timerId);
+            timerId = null;
             timeLeft = 0;
             isRunning = false;
             releaseWakeLock();
@@ -455,7 +475,16 @@
       });
     });
 
-    document.body.addEventListener('click', toggleTimer);
+    document.body.addEventListener('click', () => {
+      const now = Date.now();
+      const timesince = now - lastTap;
+      if (timesince < 300 && timesince > 0) {
+        resetTimer();
+      } else {
+        toggleTimer();
+      }
+      lastTap = now;
+    });
   </script>
 </body>
 </html>
