@@ -175,7 +175,7 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.2</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.3</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -245,21 +245,32 @@
     function playVoice(type, sec = null) {
       const char = CHARACTER_DATA[activeCharId];
       let path = '';
+      
+      // Try Web Audio for countdowns and finish voices (Pattern D)
+      let bufferKey = '';
+      if (type === 'countdown' && sec !== null) bufferKey = `countdown_${sec}`;
+      else if (type === 'patternD') {
+        const randIdx = Math.floor(Math.random() * char.voices[type].length);
+        bufferKey = `patternD_${randIdx}`;
+      }
+
+      if (bufferKey && audioCtx && audioBuffers[bufferKey]) {
+        const s = audioCtx.createBufferSource();
+        s.buffer = audioBuffers[bufferKey];
+        s.connect(audioCtx.destination);
+        activeSources.push(s);
+        s.start(0);
+        return;
+      }
+
+      // Fallback to singleton Audio player
       if (type === 'countdown' && sec !== null) {
-        const b = `countdown_${sec}`;
-        if (audioCtx && audioBuffers[b]) {
-          const s = audioCtx.createBufferSource();
-          s.buffer = audioBuffers[b];
-          s.connect(audioCtx.destination);
-          activeSources.push(s);
-          s.start(0);
-          return;
-        }
         path = char.voices.countdown[sec];
       } else {
         const arr = char.voices[type];
         path = arr[Math.floor(Math.random() * arr.length)];
       }
+
       if (path) {
         voicePlayer.src = path;
         voicePlayer.play().catch(()=>{});
@@ -267,15 +278,24 @@
     }
 
     function tick() {
-      const diff = Math.ceil((timerEndTime - Date.now()) / 1000);
-      if (diff !== timeLeft) {
-        timeLeft = Math.max(0, diff);
-        if (timeLeft <= 0) {
-          clearInterval(timerId); timerId = null; isRunning = false;
-          stopAllVoice(); playVoice('patternD');
-          if(wakeLock) { wakeLock.release(); wakeLock = null; }
-          updateMediaSession();
-        } else if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
+      const now = Date.now();
+      const diffMs = timerEndTime - now;
+      const diffSec = Math.ceil(diffMs / 1000);
+
+      if (diffMs <= 0) {
+        clearInterval(timerId); timerId = null; isRunning = false;
+        timeLeft = 0;
+        updateDisplay(0);
+        stopAllVoice(); 
+        playVoice('patternD');
+        if(wakeLock) { wakeLock.release(); wakeLock = null; }
+        updateMediaSession();
+        return;
+      }
+
+      if (diffSec !== timeLeft) {
+        timeLeft = diffSec;
+        if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
         else if (timeLeft === 15) { playVoice('patternB'); }
         else if ((initialTime - timeLeft) % 15 === 0 && timeLeft !== initialTime) { playVoice('patternC'); }
         updateDisplay(timeLeft);
@@ -291,7 +311,7 @@
       const sl = document.getElementById('silent-loop');
       if(sl) sl.play().catch(()=>{});
       if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(()=>{});
-      timerId = setInterval(tick, 200);
+      timerId = setInterval(tick, 50);
       updateMediaSession();
     }
 
@@ -301,7 +321,7 @@
       } else if (timeLeft > 0) {
         isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
         const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
-        timerId = setInterval(tick, 200);
+        timerId = setInterval(tick, 50);
       }
       updateMediaSession();
     }
@@ -317,9 +337,16 @@
     function unlock() {
       if(!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const c = CHARACTER_DATA[activeCharId].voices.countdown;
-        Object.keys(c).forEach(k => {
-          fetch(c[k]).then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => audioBuffers[`countdown_${k}`] = buf);
+        const voices = CHARACTER_DATA[activeCharId].voices;
+        
+        // Pre-load Countdown
+        Object.keys(voices.countdown).forEach(k => {
+          fetch(voices.countdown[k]).then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => audioBuffers[`countdown_${k}`] = buf);
+        });
+        
+        // Pre-load Pattern D (Finish)
+        voices.patternD.forEach((p, idx) => {
+          fetch(p).then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => audioBuffers[`patternD_${idx}`] = buf);
         });
       }
       if(audioCtx.state === 'suspended') audioCtx.resume();
