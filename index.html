@@ -175,7 +175,7 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.5</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.6</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -193,15 +193,13 @@
       <button class="preset-btn" data-time="120">120<span class="btn-unit">SEC</span></button>
     </section>
 
-    <!-- Hidden Audio Pool for Low-Latency & Background Play -->
+    <!-- Hidden Audio Pool -->
     <div id="audio-pool" style="display:none;">
       <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
-      <audio id="count-5" src="voices/kurisu/count_5.mp3" preload="auto"></audio>
-      <audio id="count-4" src="voices/kurisu/count_4.mp3" preload="auto"></audio>
-      <audio id="count-3" src="voices/kurisu/count_3.mp3" preload="auto"></audio>
-      <audio id="count-2" src="voices/kurisu/count_2.mp3" preload="auto"></audio>
-      <audio id="count-1" src="voices/kurisu/count_1.mp3" preload="auto"></audio>
-      <audio id="finish-voice" src="voices/kurisu/d_01.mp3" preload="auto"></audio>
+      <!-- Unified player for countdowns to prevent overlapping -->
+      <audio id="count-player" preload="auto"></audio>
+      <!-- Dedicated player for finish voice -->
+      <audio id="finish-player" preload="auto"></audio>
     </div>
   </div>
 
@@ -231,8 +229,9 @@
     let wakeLock = null;
     let timerEndTime = 0;
     let lastTapTime = 0;
-    let isResuming = false;      // Flag for visibility change
-    let lastPlayedSec = -1;      // Prevent duplicated plays
+    let isResuming = false;      
+    let lastPlayedSec = -1;      
+    let debounceTimer = null;    // For burst suppression
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
@@ -248,45 +247,52 @@
     }
 
     function stopAllVoice() {
-      voicePlayer.pause();
-      voicePlayer.currentTime = 0;
-      for(let i=1; i<=5; i++) {
-        const el = document.getElementById(`count-${i}`);
-        if(el) { el.pause(); el.currentTime = 0; }
-      }
-      const finishEl = document.getElementById('finish-voice');
-      if(finishEl) { finishEl.pause(); finishEl.currentTime = 0; }
+      voicePlayer.pause(); voicePlayer.currentTime = 0;
+      const cp = document.getElementById('count-player');
+      if(cp) { cp.pause(); cp.currentTime = 0; }
+      const fp = document.getElementById('finish-player');
+      if(fp) { fp.pause(); fp.currentTime = 0; }
       const sl = document.getElementById('silent-loop');
       if(sl) sl.pause();
     }
 
     function playVoice(type, sec = null) {
-      // Prevent double play in the same second
       if (type === 'countdown' && sec === lastPlayedSec) return;
-      if (type === 'countdown') lastPlayedSec = sec;
-
-      const char = CHARACTER_DATA[activeCharId];
-      if (type === 'countdown' && sec !== null) {
-        const el = document.getElementById(`count-${sec}`);
-        if (el) { el.play().catch(()=>{}); return; }
-      }
       
-      if (type === 'patternD') {
-        const el = document.getElementById('finish-voice');
-        if (el) {
-          const arr = char.voices.patternD;
-          el.src = arr[Math.floor(Math.random() * arr.length)];
-          el.play().catch(()=>{});
-          return;
+      const char = CHARACTER_DATA[activeCharId];
+      
+      // Debounce logic for catch-up bursts
+      if (debounceTimer) clearTimeout(debounceTimer);
+      
+      debounceTimer = setTimeout(() => {
+        if (type === 'countdown' && sec !== null) {
+          lastPlayedSec = sec;
+          const cp = document.getElementById('count-player');
+          if (cp) {
+            cp.src = char.voices.countdown[sec];
+            cp.play().catch(()=>{});
+            return;
+          }
         }
-      }
+        
+        if (type === 'patternD') {
+          const fp = document.getElementById('finish-player');
+          if (fp) {
+            const arr = char.voices.patternD;
+            fp.src = arr[Math.floor(Math.random() * arr.length)];
+            fp.play().catch(()=>{});
+            return;
+          }
+        }
 
-      const arr = char.voices[type];
-      const path = arr[Math.floor(Math.random() * arr.length)];
-      if (path) {
-        voicePlayer.src = path;
-        voicePlayer.play().catch(()=>{});
-      }
+        const arr = char.voices[type];
+        const path = arr[Math.floor(Math.random() * arr.length)];
+        if (path) {
+          voicePlayer.src = path;
+          voicePlayer.play().catch(()=>{});
+        }
+        debounceTimer = null;
+      }, 25); // 25ms debounce to consolidate unlock bursts
     }
 
     function tick() {
@@ -296,12 +302,10 @@
 
       if (diffMs <= 0) {
         clearInterval(timerId); timerId = null; isRunning = false;
-        timeLeft = 0;
-        updateDisplay(0);
+        timeLeft = 0; updateDisplay(0);
         stopAllVoice(); 
         const sl = document.getElementById('silent-loop');
         if(sl) sl.play().catch(()=>{});
-        // On resume, if we missed the end, we still play the finish voice once.
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -316,13 +320,15 @@
         timeLeft = diffSec;
         updateDisplay(timeLeft);
         
-        // Skip voice if we just resumed/jumped to prevent burst
         if (!catchUp) {
           if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
           else if (timeLeft === 15) { playVoice('patternB'); }
           else if ((initialTime - timeLeft) % 15 === 0 && timeLeft !== initialTime) { playVoice('patternC'); }
+        } else {
+          // If caught up, just set the last played to current to avoid re-play
+          lastPlayedSec = timeLeft;
         }
-        isResuming = false; // Reset flag after one catch-up tick
+        isResuming = false; 
       }
     }
 
@@ -345,7 +351,7 @@
         clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
       } else if (timeLeft > 0) {
         isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
-        isResuming = true; // Mark as resuming to sync display without burst
+        isResuming = true; 
         const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
         timerId = setInterval(tick, 50);
       }
@@ -364,37 +370,28 @@
       if(!voicePlayer.unlocked) {
         const sl = document.getElementById('silent-loop');
         if(sl) sl.play().then(()=>sl.pause()).catch(()=>{});
-        for(let i=1; i<=5; i++) {
-          const el = document.getElementById(`count-${i}`);
-          if(el) el.play().then(()=>el.pause()).catch(()=>{});
-        }
-        const finishEl = document.getElementById('finish-voice');
-        if(finishEl) finishEl.play().then(()=>finishEl.pause()).catch(()=>{});
-        voicePlayer.play().then(() => { 
-          voicePlayer.pause(); 
-          voicePlayer.unlocked = true; 
-        }).catch(()=>{});
+        
+        const cp = document.getElementById('count-player');
+        if(cp) { cp.src = CHARACTER_DATA[activeCharId].voices.countdown[1]; cp.play().then(()=>cp.pause()).catch(()=>{}); }
+        
+        const fp = document.getElementById('finish-player');
+        if(fp) { fp.src = CHARACTER_DATA[activeCharId].voices.patternD[0]; fp.play().then(()=>fp.pause()).catch(()=>{}); }
+
+        voicePlayer.play().then(() => { voicePlayer.pause(); voicePlayer.unlocked = true; }).catch(()=>{});
       }
     }
 
     buttons.forEach(b => b.addEventListener('click', (e) => { 
-      e.stopPropagation();
-      unlock(); 
-      startTimer(parseInt(b.dataset.time)); 
+      e.stopPropagation(); unlock(); startTimer(parseInt(b.dataset.time)); 
     }));
 
     document.body.addEventListener('click', (e) => {
       const now = Date.now();
       const delay = now - lastTapTime;
       lastTapTime = now;
-      if (delay < 300 && delay > 0) {
-        resetTimer();
-      } else {
-        setTimeout(() => {
-          if (Date.now() - lastTapTime >= 280) {
-             unlock(); toggleTimer();
-          }
-        }, 300);
+      if (delay < 300 && delay > 0) { resetTimer(); }
+      else {
+        setTimeout(() => { if (Date.now() - lastTapTime >= 280) { unlock(); toggleTimer(); } }, 300);
       }
     });
 
