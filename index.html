@@ -213,7 +213,7 @@
   <div class="tap-area" id="tap-area"></div>
 
   <div class="app-container">
-    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.1</span></div>
+    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.2</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -275,6 +275,7 @@
 
     let activeCharId = 'kurisu';
     const voicePlayer = new Audio(); // iOS対策：シングルトンAudioプレイヤー
+    voicePlayer.unlocked = false; // 初回アンロック判定用フラグ
     
     // Web Audio API 設定（低遅延用）
     let audioCtx = null;
@@ -530,9 +531,15 @@
         audioCtx.resume();
       }
 
-      voicePlayer.play().then(() => {
-        voicePlayer.pause();
-      }).catch(e => console.log("Audio unlock failed:", e));
+      // HTML5 Audio(voicePlayer)のアンロックは最初の1回だけでOK
+      // 2回目以降に実行すると、直後のPlayVoice('patternA')と競合して音が消える原因になる
+      if (!voicePlayer.unlocked) {
+        voicePlayer.play().then(() => {
+          voicePlayer.pause();
+          voicePlayer.unlocked = true;
+          console.log("voicePlayer unlocked");
+        }).catch(e => console.log("Audio unlock failed:", e));
+      }
     }
 
     buttons.forEach(btn => {
