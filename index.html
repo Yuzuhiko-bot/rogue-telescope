@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.2</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.3</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -224,7 +224,8 @@
     <!-- Hidden Audio Pool -->
     <div id="audio-pool" style="display:none;">
       <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
-      <audio id="count-player" preload="auto"></audio>
+      <audio id="count-player-a" preload="auto"></audio>
+      <audio id="count-player-b" preload="auto"></audio>
       <audio id="finish-player" preload="auto"></audio>
     </div>
   </div>
@@ -259,6 +260,7 @@
     let lastPlayedSec = -1;      
     let lastVoiceTime = 0;
     let isMuted = localStorage.getItem('isMuted') === 'true';
+    let countIdx = 0; // v4.3 rotate player
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
@@ -290,8 +292,12 @@
 
     function stopAllVoice(keepCount = false) {
       voicePlayer.pause(); voicePlayer.currentTime = 0;
-      const cp = document.getElementById('count-player');
-      if(cp && !keepCount) { cp.pause(); cp.currentTime = 0; }
+      if (!keepCount) {
+        const cpa = document.getElementById('count-player-a');
+        const cpb = document.getElementById('count-player-b');
+        if(cpa) { cpa.pause(); cpa.currentTime = 0; }
+        if(cpb) { cpb.pause(); cpb.currentTime = 0; }
+      }
       const fp = document.getElementById('finish-player');
       if(fp) { fp.pause(); fp.currentTime = 0; }
       const sl = document.getElementById('silent-loop');
@@ -310,7 +316,10 @@
 
       if (type === 'countdown' && sec !== null) {
         lastPlayedSec = sec;
-        const cp = document.getElementById('count-player');
+        // v4.3 rotate between count-player-a and count-player-b
+        const pid = countIdx % 2 === 0 ? 'count-player-a' : 'count-player-b';
+        const cp = document.getElementById(pid);
+        countIdx++;
         if (cp) {
           cp.src = char.voices.countdown[sec];
           cp.play().catch(()=>{});
@@ -344,11 +353,8 @@
       if (diffMs <= 0) {
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0; updateDisplay(0);
-        
-        // v4.2: Stop only silent-loop to avoid cutting off countdown "1"
         const sl = document.getElementById('silent-loop');
         if(sl) sl.pause();
-        
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -414,11 +420,11 @@
 
     function unlock() {
       if(!voicePlayer.unlocked) {
-        // v4.2: Use forced silent data URI to warm up, clearing any leftover audio src
         const sil = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD';
         [
           document.getElementById('silent-loop'),
-          document.getElementById('count-player'),
+          document.getElementById('count-player-a'),
+          document.getElementById('count-player-b'),
           document.getElementById('finish-player'),
           voicePlayer
         ].forEach(p => {
