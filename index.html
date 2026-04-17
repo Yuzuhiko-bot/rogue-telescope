@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.5</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.6</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -221,12 +221,15 @@
       <button class="preset-btn" data-time="120">120<span class="btn-unit">SEC</span></button>
     </section>
 
-    <!-- Hidden Audio Pool -->
+    <!-- Hidden Audio Pool v4.6 Dedicated Players -->
     <div id="audio-pool" style="display:none;">
       <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
-      <audio id="count-player-a" preload="auto"></audio>
-      <audio id="count-player-b" preload="auto"></audio>
-      <audio id="finish-player" preload="auto"></audio>
+      <audio id="cd-5" preload="auto"></audio>
+      <audio id="cd-4" preload="auto"></audio>
+      <audio id="cd-3" preload="auto"></audio>
+      <audio id="cd-2" preload="auto"></audio>
+      <audio id="cd-1" preload="auto"></audio>
+      <audio id="finish-voice" preload="auto"></audio>
     </div>
   </div>
 
@@ -260,7 +263,6 @@
     let lastPlayedSec = -1;      
     let lastVoiceTime = 0;
     let isMuted = localStorage.getItem('isMuted') === 'true';
-    let countIdx = 0; 
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
@@ -290,18 +292,38 @@
       timeDisplay.textContent = Math.floor(sec/60).toString().padStart(2,'0') + ":" + (sec%60).toString().padStart(2,'0');
     }
 
+    // v4.6 Stop all players except for the tail of countdown/finish
     function stopAllVoice(keepCount = false) {
       voicePlayer.pause(); voicePlayer.currentTime = 0;
       if (!keepCount) {
-        const cpa = document.getElementById('count-player-a');
-        const cpb = document.getElementById('count-player-b');
-        if(cpa) { cpa.pause(); cpa.currentTime = 0; }
-        if(cpb) { cpb.pause(); cpb.currentTime = 0; }
+        for(let i=1; i<=5; i++){
+          const p = document.getElementById('cd-'+i);
+          if(p) { p.pause(); p.currentTime = 0; }
+        }
       }
-      const fp = document.getElementById('finish-player');
-      if(fp) { fp.pause(); fp.currentTime = 0; }
       const sl = document.getElementById('silent-loop');
       if(sl) sl.pause();
+      // Keep finish-voice playing if it was just started
+      if (!keepCount) {
+        const fv = document.getElementById('finish-voice');
+        if(fv) { fv.pause(); fv.currentTime = 0; }
+      }
+    }
+
+    // v4.6 Pre-arm countdown and finish voices for zero-latency playback
+    function preArmVoices(charId) {
+      const char = CHARACTER_DATA[charId];
+      if(!char) return;
+      for(let i=1; i<=5; i++){
+        const p = document.getElementById('cd-'+i);
+        if(p) { p.src = char.voices.countdown[i]; p.load(); }
+      }
+      const fv = document.getElementById('finish-voice');
+      if(fv) {
+        const arr = char.voices.patternD;
+        fv.src = arr[Math.floor(Math.random() * arr.length)];
+        fv.load();
+      }
     }
 
     function playVoice(type, sec = null) {
@@ -314,26 +336,16 @@
       if (now - lastVoiceTime < 200) return;
       lastVoiceTime = now;
 
+      // v4.6 Use pre-armed players for countdown and finish
       if (type === 'countdown' && sec !== null) {
         lastPlayedSec = sec;
-        const pid = countIdx % 2 === 0 ? 'count-player-a' : 'count-player-b';
-        const cp = document.getElementById(pid);
-        countIdx++;
-        if (cp) {
-          cp.src = char.voices.countdown[sec];
-          cp.play().catch(()=>{});
-          return;
-        }
+        const cp = document.getElementById('cd-'+sec);
+        if (cp) { cp.play().catch(()=>{}); return; }
       }
       
       if (type === 'patternD') {
-        const fp = document.getElementById('finish-player');
-        if (fp) {
-          const arr = char.voices.patternD;
-          fp.src = arr[Math.floor(Math.random() * arr.length)];
-          fp.play().catch(()=>{});
-          return;
-        }
+        const fv = document.getElementById('finish-voice');
+        if (fv) { fv.play().catch(()=>{}); return; }
       }
 
       const arr = char.voices[type];
@@ -352,11 +364,8 @@
       if (diffMs <= 0) {
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0; updateDisplay(0);
-        
-        // v4.5 REVERSION: Keep silent-loop playing to ensure background survival
         const sl = document.getElementById('silent-loop');
         if(sl && !isMuted) sl.play().catch(()=>{});
-        
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -388,6 +397,7 @@
       timerEndTime = Date.now() + sec * 1000;
       lastPlayedSec = -1;
       updateDisplay(timeLeft);
+      preArmVoices(activeCharId); // v4.6 Load voices immediately
       playVoice('patternA');
       const sl = document.getElementById('silent-loop');
       if(sl && !isMuted) sl.play().catch(()=>{});
@@ -405,6 +415,7 @@
         } else if (timeLeft > 0) {
           isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
           isResuming = true; 
+          preArmVoices(activeCharId); // Ensure armed
           const sl = document.getElementById('silent-loop'); if(sl && !isMuted) sl.play().catch(()=>{});
           timerId = setInterval(tick, 50);
         }
@@ -423,13 +434,10 @@
     function unlock() {
       if(!voicePlayer.unlocked) {
         const sil = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD';
-        [
-          document.getElementById('silent-loop'),
-          document.getElementById('count-player-a'),
-          document.getElementById('count-player-b'),
-          document.getElementById('finish-player'),
-          voicePlayer
-        ].forEach(p => {
+        const players = [document.getElementById('silent-loop'), voicePlayer, document.getElementById('finish-voice')];
+        for(let i=1; i<=5; i++) players.push(document.getElementById('cd-'+i));
+
+        players.forEach(p => {
           if (p) {
             if (!p.src || p.src.startsWith('data:') || p.src === window.location.href) {
                 p.src = sil;
