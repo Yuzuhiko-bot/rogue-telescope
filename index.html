@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy: 20260417-174300 -->
+<!-- deploy: 20260417-175300 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -201,13 +201,13 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.8</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.9</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
-      <div class="tap-to-start">Tap: Start/Stop | Dbl-Tap: Reset</div>
+      <div class="tap-to-start">Tap: Start/Stop | Dbl-Tap: Restart</div>
     </section>
 
     <section class="character-section">
@@ -349,9 +349,8 @@
       }
     }
 
-    // v4.8 Main loop driven by 'timeupdate' heartbeat or manual trigger
     function tick() {
-      if (!isRunning) return; // v4.8 Guard
+      if (!isRunning) return; 
 
       const now = Date.now();
       const diffMs = timerEndTime - now;
@@ -399,7 +398,6 @@
       if(sl) sl.play().catch(()=>{});
       if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(()=>{});
       updateMediaSession();
-      // tick() will be called by timeupdate event from silent-loop
     }
 
     function toggleTimer() {
@@ -418,6 +416,14 @@
       updateMediaSession();
     }
 
+    // v4.9 Optimized: Now Re-starts immediately from full duration
+    function restartFromInitial() {
+      if (initialTime > 0) {
+        unlock();
+        startTimer(initialTime);
+      }
+    }
+
     function resetTimer() {
       isRunning = false; stopAllVoice();
       timeLeft = initialTime;
@@ -433,7 +439,6 @@
         const players = [sl, voicePlayer, document.getElementById('finish-voice')];
         for(let i=1; i<=5; i++) players.push(document.getElementById('cd-'+i));
 
-        // v4.8 Add Heartbeat listener
         if (sl) {
           sl.addEventListener('timeupdate', tick);
         }
@@ -447,9 +452,7 @@
           }
         });
         
-        // Ensure silent-loop starts playing to drive the heartbeat
         if (sl) sl.play().catch(()=>{});
-
         voicePlayer.unlocked = true;
       }
     }
@@ -462,7 +465,10 @@
       const now = Date.now();
       const delay = now - lastTapTime;
       lastTapTime = now;
-      if (delay < 300 && delay > 0) { resetTimer(); }
+      if (delay < 300 && delay > 0) { 
+        // v4.9 Modified: Double-tap = Restart
+        restartFromInitial();
+      }
       else {
         setTimeout(() => { if (Date.now() - lastTapTime >= 280) { unlock(); toggleTimer(); } }, 300);
       }
