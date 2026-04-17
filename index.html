@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy: 20260416-191900 -->
+<!-- deploy: 20260417-124500 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7,6 +7,8 @@
 <meta name="description" content="Workout interval timer with a pop and colorful comic-style design.">
 <meta name="theme-color" content="#ffffff">
 <title>CheerPump Timer</title>
+<link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="./images/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@800;900&display=swap" rel="stylesheet">
@@ -26,24 +28,17 @@
     margin: 0; 
     padding: 0; 
     -webkit-tap-highlight-color: transparent; 
-    text-shadow: none;
   }
   
   body {
     background-color: var(--bg-color);
-    /* 🌟 4色のドットを配置 */
     background-image: 
-      radial-gradient(#ffcce0 15%, transparent 16%), /* パステルピンク */
-      radial-gradient(#ccffff 15%, transparent 16%), /* パステルシアン */
-      radial-gradient(#fff5cc 15%, transparent 16%), /* パステルイエロー */
-      radial-gradient(#e0facc 15%, transparent 16%); /* パステルグリーン */
-    background-size: 40px 40px; /* ドットの間隔を調整 */
-    background-position: 
-      0 0,       /* ピンク: 左上 */
-      20px 20px, /* シアン: 右下（斜めの配置） */
-      20px 0,    /* イエロー: 右上 */
-      0 20px;    /* グリーン: 左下 */
-      
+      radial-gradient(#ffcce0 15%, transparent 16%),
+      radial-gradient(#ccffff 15%, transparent 16%),
+      radial-gradient(#fff5cc 15%, transparent 16%),
+      radial-gradient(#e0facc 15%, transparent 16%);
+    background-size: 40px 40px;
+    background-position: 0 0, 20px 20px, 20px 0, 0 20px;
     color: var(--text-color);
     font-family: 'M PLUS Rounded 1c', 'Kosugi Maru', sans-serif;
     display: flex;
@@ -58,14 +53,6 @@
     padding: env(safe-area-inset-top, 5px) 0 env(safe-area-inset-bottom, 5px);
   }
 
-  .tap-area {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    cursor: pointer;
-    pointer-events: none;
-  }
-
   .app-container {
     position: relative;
     z-index: 2;
@@ -75,20 +62,17 @@
     width: 100%;
     max-width: 450px;
     margin: 0 auto;
-    padding: 0 16px 30px; /* 下部に余白を追加 */
+    padding: 0 16px 30px;
   }
 
   .header-area {
-    flex: 0 0 auto;
     text-align: center;
     color: #ddd;
     font-size: 0.6rem;
     padding: 4px 0;
   }
 
-  /* 1. タイマー表示エリア (さらに、さらに、薄く) */
   .timer-section {
-    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -96,19 +80,15 @@
   }
 
   .timer-display {
-    color: #ffffff; /* 文字の中身は白 */
+    color: #ffffff;
     font-size: clamp(3rem, 13vh, 4.8rem);
     font-weight: 900;
     line-height: 0.9;
-    
-    /* 🌟 ここを追加：一番上の文字に直接黒いフチ取りをつける */
     -webkit-text-stroke: 3px var(--border-color); 
-
-    /* 縁取りができた分、影のダブつきを無くしてスッキリさせます */
     text-shadow: 
       5px 5px 0 var(--border-color),
-      10px 10px 0 var(--color-120), /* ピンクの影 */
-      15px 15px 0 var(--color-60) !important; /* シアンの影 */
+      10px 10px 0 var(--color-120),
+      15px 15px 0 var(--color-60);
   }
 
   .tap-to-start {
@@ -123,36 +103,23 @@
     box-shadow: 2px 2px 0 var(--border-color);
   }
 
-  /* 2. キャラクター表示エリア (真の巨大化) */
   .character-section {
-    flex: 1; /* 残りのスペースすべてをキャラへ */
+    flex: 1;
     display: flex;
     justify-content: center;
-    align-items: center; /* 中央に配置して存在感を出す */
-    padding: 0;
-    min-height: 150px; /* 極小画面でもキャラが消えないように最低限のサイズを確保 */
+    align-items: center;
+    min-height: 150px;
     position: relative;
   }
   
-  .character-wrapper {
-    width: 100%;
-    height: 100%;
-    /* 📱 画面の約 60% までキャラを表示可能に */
-    max-height: 60vh; 
-    display: flex;
-    justify-content: center;
-    align-items: center; 
-  }
-
   .character-img {
-    height: 100%; /* 親の高さ(60vh)いっぱいまで伸びる */
+    height: auto;
+    max-height: 55vh;
     width: auto;
     max-width: 100%;
     object-fit: contain;
-    z-index: 10;
     filter: drop-shadow(0 5px 20px rgba(0,0,0,0.15));
     animation: floating 4s ease-in-out infinite;
-    transform-origin: center center;
   }
 
   @keyframes floating {
@@ -160,10 +127,8 @@
     50% { transform: translateY(-12px) scale(1.03); }
   }
 
-  /* 3. ボタンエリア (下部に固定) */
   .controls-section {
-    flex: 0 0 auto;
-    padding: 10px 0 10px;
+    padding: 10px 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
@@ -192,42 +157,25 @@
   .preset-btn[data-time="30"] { background-color: var(--color-30); }
   .preset-btn[data-time="60"] { background-color: var(--color-60); }
   .preset-btn[data-time="90"] { background-color: var(--color-90); }
-  .preset-btn[data-time="120"] { background-color: var(--color-120); color: var(--text-color); }
+  .preset-btn[data-time="120"] { background-color: var(--color-120); }
   
-  .btn-unit {
-    font-size: 0.8rem;
-    margin-top: -3px;
-  }
+  .btn-unit { font-size: 0.8rem; margin-top: -3px; }
 
   .preset-btn:active {
     transform: translate(4px, 4px);
     box-shadow: 0px 0px 0 var(--border-color);
   }
 
-  /* ⌚ アップルウォッチ等の極小画面(高さ制限)用調整 */
   @media (max-height: 500px) {
-    .timer-display {
-      font-size: clamp(2rem, 10vh, 3.5rem);
-    }
-    .preset-btn {
-      height: clamp(50px, 8vh, 70px);
-      font-size: 1.2rem;
-    }
-    .header-area {
-      padding: 0;
-    }
-    .character-section {
-      min-height: 120px;
-    }
+    .timer-display { font-size: clamp(2rem, 10vh, 3.5rem); }
+    .preset-btn { height: clamp(50px, 8vh, 70px); font-size: 1.2rem; }
+    .character-section { min-height: 120px; }
   }
 </style>
 </head>
 <body>
-
-  <div class="tap-area" id="tap-area"></div>
-
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.0</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.1</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -235,9 +183,7 @@
     </section>
 
     <section class="character-section">
-      <div class="character-wrapper">
-        <img src="./images/kurisu_v2_chibi.png?v=chibi" alt="Character" class="character-img" id="character-img">
-      </div>
+      <img src="./images/kurisu_v2_chibi.png?v=chibi" alt="Character" class="character-img" id="character-img">
     </section>
 
     <section class="controls-section">
@@ -246,385 +192,138 @@
       <button class="preset-btn" data-time="90">90<span class="btn-unit">SEC</span></button>
       <button class="preset-btn" data-time="120">120<span class="btn-unit">SEC</span></button>
     </section>
+
+    <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
   </div>
 
   <script>
-    /**
-     * 【要件1：データ構造の刷新】
-     * 複数キャラクターおよび詳細なボイスパスを管理
-     */
     const CHARACTER_DATA = {
       kurisu: {
         id: 'kurisu',
         name: 'Kurisu Makise',
         imageSrc: './images/kurisu_v2_chibi.png?v=chibi',
         voices: {
-          patternA: [
-            'voices/kurisu/a_01.mp3', 'voices/kurisu/a_02.mp3', 'voices/kurisu/a_03.mp3', 'voices/kurisu/a_04.mp3', 'voices/kurisu/a_05.mp3',
-            'voices/kurisu/a_06.mp3', 'voices/kurisu/a_07.mp3', 'voices/kurisu/a_08.mp3', 'voices/kurisu/a_09.mp3', 'voices/kurisu/a_10.mp3'
-          ],
-          patternB: [
-            'voices/kurisu/b_01.mp3', 'voices/kurisu/b_02.mp3', 'voices/kurisu/b_03.mp3', 'voices/kurisu/b_04.mp3', 'voices/kurisu/b_05.mp3',
-            'voices/kurisu/b_06.mp3', 'voices/kurisu/b_07.mp3', 'voices/kurisu/b_08.mp3', 'voices/kurisu/b_09.mp3', 'voices/kurisu/b_10.mp3'
-          ],
-          patternC: [
-            'voices/kurisu/c_01.mp3', 'voices/kurisu/c_02.mp3', 'voices/kurisu/c_03.mp3', 'voices/kurisu/c_04.mp3', 'voices/kurisu/c_05.mp3',
-            'voices/kurisu/c_06.mp3', 'voices/kurisu/c_07.mp3', 'voices/kurisu/c_08.mp3', 'voices/kurisu/c_09.mp3', 'voices/kurisu/c_10.mp3'
-          ],
-          patternD: [
-            'voices/kurisu/d_01.mp3', 'voices/kurisu/d_02.mp3', 'voices/kurisu/d_03.mp3', 'voices/kurisu/d_04.mp3', 'voices/kurisu/d_05.mp3',
-            'voices/kurisu/d_06.mp3', 'voices/kurisu/d_07.mp3', 'voices/kurisu/d_08.mp3', 'voices/kurisu/d_09.mp3', 'voices/kurisu/d_10.mp3'
-          ],
-          countdown: {
-            5: 'voices/kurisu/count_5.mp3',
-            4: 'voices/kurisu/count_4.mp3',
-            3: 'voices/kurisu/count_3.mp3',
-            2: 'voices/kurisu/count_2.mp3',
-            1: 'voices/kurisu/count_1.mp3'
-          }
+          patternA: ['voices/kurisu/a_01.mp3', 'voices/kurisu/a_02.mp3', 'voices/kurisu/a_03.mp3', 'voices/kurisu/a_04.mp3', 'voices/kurisu/a_05.mp3', 'voices/kurisu/a_06.mp3', 'voices/kurisu/a_07.mp3', 'voices/kurisu/a_08.mp3', 'voices/kurisu/a_09.mp3', 'voices/kurisu/a_10.mp3'],
+          patternB: ['voices/kurisu/b_01.mp3', 'voices/kurisu/b_02.mp3', 'voices/kurisu/b_03.mp3', 'voices/kurisu/b_04.mp3', 'voices/kurisu/b_05.mp3', 'voices/kurisu/b_06.mp3', 'voices/kurisu/b_07.mp3', 'voices/kurisu/b_08.mp3', 'voices/kurisu/b_09.mp3', 'voices/kurisu/b_10.mp3'],
+          patternC: ['voices/kurisu/c_01.mp3', 'voices/kurisu/c_02.mp3', 'voices/kurisu/c_03.mp3', 'voices/kurisu/c_04.mp3', 'voices/kurisu/c_05.mp3', 'voices/kurisu/c_06.mp3', 'voices/kurisu/c_07.mp3', 'voices/kurisu/c_08.mp3', 'voices/kurisu/c_09.mp3', 'voices/kurisu/c_10.mp3'],
+          patternD: ['voices/kurisu/d_01.mp3', 'voices/kurisu/d_02.mp3', 'voices/kurisu/d_03.mp3', 'voices/kurisu/d_04.mp3', 'voices/kurisu/d_05.mp3', 'voices/kurisu/d_06.mp3', 'voices/kurisu/d_07.mp3', 'voices/kurisu/d_08.mp3', 'voices/kurisu/d_09.mp3', 'voices/kurisu/d_10.mp3'],
+          countdown: { 5:'voices/kurisu/count_5.mp3', 4:'voices/kurisu/count_4.mp3', 3:'voices/kurisu/count_3.mp3', 2:'voices/kurisu/count_2.mp3', 1:'voices/kurisu/count_1.mp3' }
         }
       }
-      // 将来的に他のキャラクターデータをここに追加可能
     };
 
     let activeCharId = 'kurisu';
-    const voicePlayer = new Audio(); // iOS対策：シングルトンAudioプレイヤー
-    voicePlayer.unlocked = false; // 初回アンロック判定用フラグ
-    
-    // Web Audio API 設定（低遅延用）
+    const voicePlayer = new Audio();
+    voicePlayer.unlocked = false;
     let audioCtx = null;
-    let audioBuffers = {}; // プリロードされた音声を保持
-    let activeSources = []; // 再生中のWeb Audioソースを追跡
-    
+    let audioBuffers = {};
+    let activeSources = [];
     let timerId = null;
     let timeLeft = 0;
-    let initialTime = 0; // 開始時の秒数を保持
+    let initialTime = 0;
     let isRunning = false;
     let wakeLock = null;
+    let timerEndTime = 0;
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
-    const characterImg = document.getElementById('character-img');
 
-    /**
-     * Web Audio APIを使用した低遅延再生
-     */
-    function playBuffer(name) {
-      if (!audioCtx || !audioBuffers[name]) return;
-      const source = audioCtx.createBufferSource();
-      source.buffer = audioBuffers[name];
-      source.connect(audioCtx.destination);
-      
-      // 再生中のソースを追跡（停止用）
-      activeSources.push(source);
-      source.onended = () => {
-        activeSources = activeSources.filter(s => s !== source);
-      };
-      
-      source.start(0);
-    }
-
-    /**
-     * 全ての音声を停止する
-     */
     function stopAllVoice() {
-      // 1. シングルトンプレイヤーの停止
       voicePlayer.pause();
       voicePlayer.currentTime = 0;
-
-      // 2. Web Audioソースの停止
-      activeSources.forEach(source => {
-        try {
-          source.stop(0);
-        } catch (e) {}
-      });
+      activeSources.forEach(s => { try{s.stop(0)}catch(e){} });
       activeSources = [];
+      const sl = document.getElementById('silent-loop');
+      if(sl) sl.pause();
     }
 
-    /**
-     * 【要件2：playVoice関数のアップデート】
-     * パターンに応じたランダム再生および秒数指定再生
-     */
-    function playVoice(patternType, second = null) {
+    function playVoice(type, sec = null) {
       const char = CHARACTER_DATA[activeCharId];
-      if (!char || !char.voices) return;
-
-      let voicePath = '';
-
-      if (patternType === 'countdown' && second !== null) {
-        // カウントダウン：プリロード済みバッファがあればWeb Audio APIで即時再生
-        const bufferName = `countdown_${second}`;
-        if (audioBuffers[bufferName]) {
-          playBuffer(bufferName);
+      let path = '';
+      if (type === 'countdown' && sec !== null) {
+        const b = `countdown_${sec}`;
+        if (audioCtx && audioBuffers[b]) {
+          const s = audioCtx.createBufferSource();
+          s.buffer = audioBuffers[b];
+          s.connect(audioCtx.destination);
+          activeSources.push(s);
+          s.start(0);
           return;
         }
-        voicePath = char.voices.countdown[second];
-      } else if (char.voices[patternType]) {
-        // A, B, C, D パターンの配列からランダムに選択
-        const voiceArray = char.voices[patternType];
-        if (Array.isArray(voiceArray) && voiceArray.length > 0) {
-          const randomIndex = Math.floor(Math.random() * voiceArray.length);
-          voicePath = voiceArray[randomIndex];
-        }
+        path = char.voices.countdown[sec];
+      } else {
+        const arr = char.voices[type];
+        path = arr[Math.floor(Math.random() * arr.length)];
       }
-
-      // 音声再生（シングルトンオブジェクトを再利用することでiOSの制限を回避）
-      if (voicePath) {
-        voicePlayer.pause();
-        voicePlayer.src = voicePath;
-        voicePlayer.load();
-        voicePlayer.play().catch(e => {
-          console.log("Audio playback blocked or file not found:", voicePath, e);
-        });
+      if (path) {
+        voicePlayer.src = path;
+        voicePlayer.play().catch(()=>{});
       }
     }
 
-    async function requestWakeLock() {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLock = await navigator.wakeLock.request('screen');
-        }
-      } catch (err) {
-        console.log('Wake Lock Error:', err.message);
-      }
-    }
-
-    function releaseWakeLock() {
-      if (wakeLock !== null) {
-        wakeLock.release();
-        wakeLock = null;
-      }
-    }
-
-    function formatTime(seconds) {
-      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-      const s = (seconds % 60).toString().padStart(2, '0');
-      return `${m}:${s}`;
-    }
-
-    function updateDisplay() {
-      timeDisplay.textContent = formatTime(timeLeft);
-    }
-
-    /**
-     * 【要件3：タイマーロジックの更新】
-     * 指定されたタイミングで playVoice を発火
-     */
-    function startTimer(seconds) {
-      clearInterval(timerId);
-      stopAllVoice(); // 前の音を止める
-      timeLeft = seconds;
-      initialTime = seconds;
-      updateDisplay();
-      isRunning = true;
-      
-      requestWakeLock();
-      
-      // 1. 開始直後：patternA
-      playVoice('patternA'); 
-      
-      timerId = setInterval(() => {
-        timeLeft--;
-
+    function tick() {
+      const diff = Math.ceil((timerEndTime - Date.now()) / 1000);
+      if (diff !== timeLeft) {
+        timeLeft = Math.max(0, diff);
         if (timeLeft <= 0) {
-          // 4. 0秒になった時：patternD
-          clearInterval(timerId);
-          timeLeft = 0;
-          isRunning = false;
-          releaseWakeLock();
-          playVoice('patternD');
-        } 
-        else if (timeLeft >= 1 && timeLeft <= 5) {
-          // 3. 残り時間が5秒〜1秒の時：毎秒 countdown を再生
-          playVoice('countdown', timeLeft);
-        }
-        else if (timeLeft === 15) {
-          // 2. 残り15秒の時：patternB
-          playVoice('patternB');
-        }
-        else {
-          // 5. 上記以外のタイミングで、開始から「15秒経過」するごとの時：patternC
-          const elapsed = initialTime - timeLeft;
-          if (elapsed > 0 && elapsed % 15 === 0) {
-            playVoice('patternC');
-          }
-        }
-
-        // 毎秒の表示更新
-        updateDisplay();
-      }, 1000);
+          clearInterval(timerId); timerId = null; isRunning = false;
+          stopAllVoice(); playVoice('patternD');
+          if(wakeLock) { wakeLock.release(); wakeLock = null; }
+        } else if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
+        else if (timeLeft === 15) { playVoice('patternB'); }
+        else if ((initialTime - timeLeft) % 15 === 0) { playVoice('patternC'); }
+        timeDisplay.textContent = Math.floor(timeLeft/60).toString().padStart(2,'0') + ":" + (timeLeft%60).toString().padStart(2,'0');
+      }
     }
 
-    let lastTap = 0;
-
-    function resetTimer() {
-      clearInterval(timerId);
-      stopAllVoice(); // 音声を停止
-      timerId = null;
-      timeLeft = 0;
-      initialTime = 0;
-      isRunning = false;
-      releaseWakeLock();
-      updateDisplay();
-      
-      // 視覚的フィードバック（数字を少し揺らす）
-      timeDisplay.style.animation = 'none';
-      timeDisplay.offsetHeight; // 強制再レンダリング
-      timeDisplay.style.animation = 'shake 0.3s ease-in-out';
+    function startTimer(sec) {
+      clearInterval(timerId); stopAllVoice();
+      timeLeft = sec; initialTime = sec; isRunning = true;
+      timerEndTime = Date.now() + sec * 1000;
+      playVoice('patternA');
+      const sl = document.getElementById('silent-loop');
+      if(sl) sl.play().catch(()=>{});
+      if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w);
+      timerId = setInterval(tick, 200);
     }
 
     function toggleTimer() {
-      if (timeLeft <= 0) return;
-      
       if (isRunning) {
-        clearInterval(timerId);
-        stopAllVoice(); // 停止時に音声を止める
-        timerId = null;
-        isRunning = false;
-        releaseWakeLock();
-      } else {
-        isRunning = true;
-        requestWakeLock();
-        
-        // 再開時のボイス判定（簡易化のため現在の状態に応じて再生）
-        if (timeLeft <= 5) playVoice('countdown', timeLeft);
-        else if (timeLeft === 15) playVoice('patternB');
-
-        timerId = setInterval(() => {
-          timeLeft--;
-          if (timeLeft <= 0) {
-            clearInterval(timerId);
-            timerId = null;
-            timeLeft = 0;
-            isRunning = false;
-            releaseWakeLock();
-            playVoice('patternD');
-          } 
-          else if (timeLeft >= 1 && timeLeft <= 5) {
-            playVoice('countdown', timeLeft);
-          }
-          else if (timeLeft === 15) {
-            playVoice('patternB');
-          }
-          else {
-            const elapsed = initialTime - timeLeft;
-            if (elapsed > 0 && elapsed % 15 === 0) {
-              playVoice('patternC');
-            }
-          }
-          updateDisplay();
-        }, 1000);
+        clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
+      } else if (timeLeft > 0) {
+        isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
+        const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
+        timerId = setInterval(tick, 200);
       }
     }
 
-    /**
-     * 指定されたURLの音声をデコードして保存する
-     */
-    async function preloadBuff(url, name) {
-      try {
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        audioBuffers[name] = audioBuffer;
-        console.log(`Preloaded: ${name}`);
-      } catch (e) {
-        console.log(`Failed to preload: ${url}`, e);
-      }
-    }
-
-    /**
-     * iOSでの音声再生をアンロックするための無音再生処理
-     */
-    function unlockAudio() {
-      // AudioContextの初期化とアンロック
-      if (!audioCtx) {
+    function unlock() {
+      if(!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // カウントダウン音声のプリロード（非同期）
-        const char = CHARACTER_DATA[activeCharId];
-        if (char && char.voices && char.voices.countdown) {
-          Object.keys(char.voices.countdown).forEach(key => {
-            preloadBuff(char.voices.countdown[key], `countdown_${key}`);
-          });
-        }
+        const c = CHARACTER_DATA[activeCharId].voices.countdown;
+        Object.keys(c).forEach(k => {
+          fetch(c[k]).then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => audioBuffers[`countdown_${k}`] = buf);
+        });
       }
-      
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-
-      // HTML5 Audio(voicePlayer)のアンロックは最初の1回だけでOK
-      // 2回目以降に実行すると、直後のPlayVoice('patternA')と競合して音が消える原因になる
-      if (!voicePlayer.unlocked) {
-        voicePlayer.play().then(() => {
-          voicePlayer.pause();
-          voicePlayer.unlocked = true;
-          console.log("voicePlayer unlocked");
-        }).catch(e => console.log("Audio unlock failed:", e));
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+      if(!voicePlayer.unlocked) {
+        voicePlayer.play().then(() => { voicePlayer.pause(); voicePlayer.unlocked = true; });
       }
     }
 
-    buttons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        unlockAudio(); // ユーザー操作の直後でアンロック
-        startTimer(parseInt(btn.getAttribute('data-time'), 10));
-      });
+    buttons.forEach(b => b.addEventListener('click', () => { unlock(); startTimer(parseInt(b.dataset.time)); }));
+    document.body.addEventListener('click', (e) => {
+      if(e.target.tagName === 'BUTTON') return;
+      unlock(); toggleTimer();
     });
 
-    document.body.addEventListener('click', () => {
-      const now = Date.now();
-      const timesince = now - lastTap;
-      unlockAudio(); // ユーザー操作の直後でアンロック
-      if (timesince < 300 && timesince > 0) {
-        resetTimer();
-      } else {
-        toggleTimer();
-      }
-      lastTap = now;
-    });
-
-    /**
-     * 【Apple Watch連携機能】
-     * Media Session APIを使って、Watchの「再生中」画面からタイマーを操作・表示する
-     */
     if ('mediaSession' in navigator) {
-      
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: 'CheerPump Timer',
-        artist: 'Kurisu Makise',
-        album: 'Workout Buddy',
-        artwork: [
-          { src: './images/kurisu_v2_chibi.png?v=chibi', sizes: '512x512', type: 'image/png' }
-        ]
+        title: 'CheerPump Timer', artist: 'Kurisu Makise', album: 'Workout Buddy',
+        artwork: [{ src: './images/kurisu_v2_chibi.png?v=chibi', sizes: '512x512', type: 'image/png' }]
       });
-
-      // Watchの「再生」ボタン
-      navigator.mediaSession.setActionHandler('play', () => {
-        // もしタイマーが0なら（終わっていたら）、前回と同じ秒数で再スタート
-        if (timeLeft <= 0 && initialTime > 0) {
-          startTimer(initialTime);
-        } else if (!isRunning) {
-          toggleTimer(); 
-        }
-      });
-
-      // Watchの「一時停止」ボタン
-      navigator.mediaSession.setActionHandler('pause', () => {
-        if (isRunning) toggleTimer();
-      });
-
-      // Watchの「前の曲へ」ボタン：強制リセット
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        resetTimer();
-      });
-
-      // Watchの「次の曲へ」ボタン：前回と同じ秒数で新しくタイマーを開始
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        if (initialTime > 0) {
-          startTimer(initialTime); // 前回セットした秒数(initialTime)で再スタート
-        }
-      });
+      navigator.mediaSession.setActionHandler('play', toggleTimer);
+      navigator.mediaSession.setActionHandler('pause', toggleTimer);
     }
   </script>
 </body>
