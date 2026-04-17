@@ -154,10 +154,6 @@
     transform-origin: center center;
   }
 
-  .character-img.hurry {
-    filter: drop-shadow(0 0 25px rgba(255, 51, 119, 0.8)) contrast(1.1);
-  }
-
   @keyframes floating {
     0%, 100% { transform: translateY(0) scale(1.0); }
     50% { transform: translateY(-12px) scale(1.03); }
@@ -213,7 +209,7 @@
   <div class="tap-area" id="tap-area"></div>
 
   <div class="app-container">
-    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.3</span></div>
+    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.4</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -354,13 +350,6 @@
         }
       }
 
-      // 演出の維持：10秒以下ならhurryクラスを付与
-      if (timeLeft <= 10 && timeLeft > 0) {
-        characterImg.classList.add('hurry');
-      } else {
-        characterImg.classList.remove('hurry');
-      }
-
       // 音声再生（シングルトンオブジェクトを再利用することでiOSの制限を回避）
       if (voicePath) {
         voicePlayer.pause();
@@ -443,13 +432,8 @@
           }
         }
 
-        // 毎秒の表示更新とhurry演出チェック
+        // 毎秒の表示更新
         updateDisplay();
-        if (timeLeft <= 10 && timeLeft > 0) {
-          characterImg.classList.add('hurry');
-        } else if (timeLeft > 10 || timeLeft === 0) {
-          characterImg.classList.remove('hurry');
-        }
       }, 1000);
     }
 
@@ -463,7 +447,6 @@
       initialTime = 0;
       isRunning = false;
       releaseWakeLock();
-      characterImg.classList.remove('hurry');
       updateDisplay();
       
       // 視覚的フィードバック（数字を少し揺らす）
@@ -481,7 +464,6 @@
         timerId = null;
         isRunning = false;
         releaseWakeLock();
-        characterImg.classList.remove('hurry');
       } else {
         isRunning = true;
         requestWakeLock();
@@ -489,7 +471,6 @@
         // 再開時のボイス判定（簡易化のため現在の状態に応じて再生）
         if (timeLeft <= 5) playVoice('countdown', timeLeft);
         else if (timeLeft === 15) playVoice('patternB');
-        else if (timeLeft <= 10) characterImg.classList.add('hurry');
 
         timerId = setInterval(() => {
           timeLeft--;
@@ -514,11 +495,6 @@
             }
           }
           updateDisplay();
-          if (timeLeft <= 10 && timeLeft > 0) {
-            characterImg.classList.add('hurry');
-          } else if (timeLeft > 10 || timeLeft === 0) {
-            characterImg.classList.remove('hurry');
-          }
         }, 1000);
       }
     }
