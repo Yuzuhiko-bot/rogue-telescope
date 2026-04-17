@@ -274,6 +274,7 @@
     };
 
     let activeCharId = 'kurisu';
+    const voicePlayer = new Audio(); // iOS対策：シングルトンAudioプレイヤー
     let timerId = null;
     let timeLeft = 0;
     let initialTime = 0; // 開始時の秒数を保持
@@ -313,10 +314,14 @@
         characterImg.classList.remove('hurry');
       }
 
-      // 音声再生（パスが存在する場合のみ）
+      // 音声再生（シングルトンオブジェクトを再利用することでiOSの制限を回避）
       if (voicePath) {
-        const audio = new Audio(voicePath);
-        audio.play().catch(e => console.log("Audio playback blocked or file not found:", voicePath));
+        voicePlayer.pause();
+        voicePlayer.src = voicePath;
+        voicePlayer.load();
+        voicePlayer.play().catch(e => {
+          console.log("Audio playback blocked or file not found:", voicePath, e);
+        });
       }
     }
 
@@ -468,9 +473,19 @@
       }
     }
 
+    /**
+     * iOSでの音声再生をアンロックするための無音再生処理
+     */
+    function unlockAudio() {
+      voicePlayer.play().then(() => {
+        voicePlayer.pause();
+      }).catch(e => console.log("Audio unlock failed:", e));
+    }
+
     buttons.forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        unlockAudio(); // ユーザー操作の直後でアンロック
         startTimer(parseInt(btn.getAttribute('data-time'), 10));
       });
     });
@@ -478,6 +493,7 @@
     document.body.addEventListener('click', () => {
       const now = Date.now();
       const timesince = now - lastTap;
+      unlockAudio(); // ユーザー操作の直後でアンロック
       if (timesince < 300 && timesince > 0) {
         resetTimer();
       } else {
