@@ -213,7 +213,7 @@
   <div class="tap-area" id="tap-area"></div>
 
   <div class="app-container">
-    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.2</span></div>
+    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.3</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -280,6 +280,7 @@
     // Web Audio API 設定（低遅延用）
     let audioCtx = null;
     let audioBuffers = {}; // プリロードされた音声を保持
+    let activeSources = []; // 再生中のWeb Audioソースを追跡
     
     let timerId = null;
     let timeLeft = 0;
@@ -299,7 +300,31 @@
       const source = audioCtx.createBufferSource();
       source.buffer = audioBuffers[name];
       source.connect(audioCtx.destination);
+      
+      // 再生中のソースを追跡（停止用）
+      activeSources.push(source);
+      source.onended = () => {
+        activeSources = activeSources.filter(s => s !== source);
+      };
+      
       source.start(0);
+    }
+
+    /**
+     * 全ての音声を停止する
+     */
+    function stopAllVoice() {
+      // 1. シングルトンプレイヤーの停止
+      voicePlayer.pause();
+      voicePlayer.currentTime = 0;
+
+      // 2. Web Audioソースの停止
+      activeSources.forEach(source => {
+        try {
+          source.stop(0);
+        } catch (e) {}
+      });
+      activeSources = [];
     }
 
     /**
@@ -380,6 +405,7 @@
      */
     function startTimer(seconds) {
       clearInterval(timerId);
+      stopAllVoice(); // 前の音を止める
       timeLeft = seconds;
       initialTime = seconds;
       updateDisplay();
@@ -431,6 +457,7 @@
 
     function resetTimer() {
       clearInterval(timerId);
+      stopAllVoice(); // 音声を停止
       timerId = null;
       timeLeft = 0;
       initialTime = 0;
@@ -450,6 +477,7 @@
       
       if (isRunning) {
         clearInterval(timerId);
+        stopAllVoice(); // 停止時に音声を止める
         timerId = null;
         isRunning = false;
         releaseWakeLock();
