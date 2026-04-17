@@ -175,7 +175,7 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.3</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.4</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -193,7 +193,16 @@
       <button class="preset-btn" data-time="120">120<span class="btn-unit">SEC</span></button>
     </section>
 
-    <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
+    <!-- Hidden Audio Pool for Low-Latency & Background Play -->
+    <div id="audio-pool" style="display:none;">
+      <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
+      <audio id="count-5" src="voices/kurisu/count_5.mp3" preload="auto"></audio>
+      <audio id="count-4" src="voices/kurisu/count_4.mp3" preload="auto"></audio>
+      <audio id="count-3" src="voices/kurisu/count_3.mp3" preload="auto"></audio>
+      <audio id="count-2" src="voices/kurisu/count_2.mp3" preload="auto"></audio>
+      <audio id="count-1" src="voices/kurisu/count_1.mp3" preload="auto"></audio>
+      <audio id="finish-voice" src="voices/kurisu/d_01.mp3" preload="auto"></audio>
+    </div>
   </div>
 
   <script>
@@ -215,9 +224,6 @@
     let activeCharId = 'kurisu';
     const voicePlayer = new Audio();
     voicePlayer.unlocked = false;
-    let audioCtx = null;
-    let audioBuffers = {};
-    let activeSources = [];
     let timerId = null;
     let timeLeft = 0;
     let initialTime = 0;
@@ -234,43 +240,45 @@
     }
 
     function stopAllVoice() {
+      // Pause general voice player
       voicePlayer.pause();
       voicePlayer.currentTime = 0;
-      activeSources.forEach(s => { try{s.stop(0)}catch(e){} });
-      activeSources = [];
+      
+      // Stop all background/pooled audio
+      for(let i=1; i<=5; i++) {
+        const el = document.getElementById(`count-${i}`);
+        if(el) { el.pause(); el.currentTime = 0; }
+      }
+      const finishEl = document.getElementById('finish-voice');
+      if(finishEl) { finishEl.pause(); finishEl.currentTime = 0; }
+
       const sl = document.getElementById('silent-loop');
       if(sl) sl.pause();
     }
 
     function playVoice(type, sec = null) {
       const char = CHARACTER_DATA[activeCharId];
-      let path = '';
       
-      // Try Web Audio for countdowns and finish voices (Pattern D)
-      let bufferKey = '';
-      if (type === 'countdown' && sec !== null) bufferKey = `countdown_${sec}`;
-      else if (type === 'patternD') {
-        const randIdx = Math.floor(Math.random() * char.voices[type].length);
-        bufferKey = `patternD_${randIdx}`;
-      }
-
-      if (bufferKey && audioCtx && audioBuffers[bufferKey]) {
-        const s = audioCtx.createBufferSource();
-        s.buffer = audioBuffers[bufferKey];
-        s.connect(audioCtx.destination);
-        activeSources.push(s);
-        s.start(0);
-        return;
-      }
-
-      // Fallback to singleton Audio player
       if (type === 'countdown' && sec !== null) {
-        path = char.voices.countdown[sec];
-      } else {
-        const arr = char.voices[type];
-        path = arr[Math.floor(Math.random() * arr.length)];
+        const el = document.getElementById(`count-${sec}`);
+        if (el) { el.play().catch(()=>{}); return; }
+      }
+      
+      if (type === 'patternD') {
+        const el = document.getElementById('finish-voice');
+        if (el) {
+          // Shuffle randomly for Pattern D from pool if multiple exist, 
+          // but for now we have one dedicated element to ensure background play.
+          const arr = char.voices.patternD;
+          el.src = arr[Math.floor(Math.random() * arr.length)];
+          el.play().catch(()=>{});
+          return;
+        }
       }
 
+      // Standard randomized patterns (A, B, C) via singleton
+      const arr = char.voices[type];
+      const path = arr[Math.floor(Math.random() * arr.length)];
       if (path) {
         voicePlayer.src = path;
         voicePlayer.play().catch(()=>{});
@@ -286,7 +294,12 @@
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0;
         updateDisplay(0);
+        // Important: preserve silent-loop if we want to keep process alive, 
+        // but here we stop everything and play finish voice.
         stopAllVoice(); 
+        const sl = document.getElementById('silent-loop');
+        if(sl) sl.play().catch(()=>{}); // Resume loop to keep process alive while finish voice plays? 
+        // No, finish voice itself will keep it alive for its duration.
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -335,23 +348,22 @@
     }
 
     function unlock() {
-      if(!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const voices = CHARACTER_DATA[activeCharId].voices;
-        
-        // Pre-load Countdown
-        Object.keys(voices.countdown).forEach(k => {
-          fetch(voices.countdown[k]).then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => audioBuffers[`countdown_${k}`] = buf);
-        });
-        
-        // Pre-load Pattern D (Finish)
-        voices.patternD.forEach((p, idx) => {
-          fetch(p).then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => audioBuffers[`patternD_${idx}`] = buf);
-        });
-      }
-      if(audioCtx.state === 'suspended') audioCtx.resume();
       if(!voicePlayer.unlocked) {
-        voicePlayer.play().then(() => { voicePlayer.pause(); voicePlayer.unlocked = true; }).catch(()=>{});
+        // Unlock all audio elements in the pool for iOS
+        const sl = document.getElementById('silent-loop');
+        if(sl) sl.play().then(()=>sl.pause()).catch(()=>{});
+        
+        for(let i=1; i<=5; i++) {
+          const el = document.getElementById(`count-${i}`);
+          if(el) el.play().then(()=>el.pause()).catch(()=>{});
+        }
+        const finishEl = document.getElementById('finish-voice');
+        if(finishEl) finishEl.play().then(()=>finishEl.pause()).catch(()=>{});
+
+        voicePlayer.play().then(() => { 
+          voicePlayer.pause(); 
+          voicePlayer.unlocked = true; 
+        }).catch(()=>{});
       }
     }
 
