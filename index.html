@@ -175,7 +175,7 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.7</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.8</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -344,11 +344,17 @@
     function toggleTimer() {
       if (isRunning) {
         clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
-      } else if (timeLeft > 0) {
-        isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
-        isResuming = true; 
-        const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
-        timerId = setInterval(tick, 50);
+      } else {
+        if (timeLeft <= 0 && initialTime > 0) {
+          // Restart with the same duration if finished (for Apple Watch/Media Session)
+          startTimer(initialTime);
+        } else if (timeLeft > 0) {
+          // Resume
+          isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
+          isResuming = true; 
+          const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
+          timerId = setInterval(tick, 50);
+        }
       }
       updateMediaSession();
     }
