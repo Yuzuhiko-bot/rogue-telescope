@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.9</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.0</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -226,8 +226,6 @@
       <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
       <audio id="count-player" preload="auto"></audio>
       <audio id="finish-player" preload="auto"></audio>
-      <!-- Detection sound: 0.5s of near-silence -->
-      <audio id="silent-test" src="data:audio/wav;base64,UklGRmYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" preload="auto"></audio>
     </div>
   </div>
 
@@ -301,7 +299,7 @@
     }
 
     function playVoice(type, sec = null) {
-      if (isMuted) return; // Silent Mode Logic
+      if (isMuted) return;
       if (type === 'countdown' && sec === lastPlayedSec) return;
       
       const char = CHARACTER_DATA[activeCharId];
@@ -391,11 +389,15 @@
     function toggleTimer() {
       if (isRunning) {
         clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
-      } else if (timeLeft > 0) {
-        isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
-        isResuming = true; 
-        const sl = document.getElementById('silent-loop'); if(sl && !isMuted) sl.play().catch(()=>{});
-        timerId = setInterval(tick, 50);
+      } else {
+        if (timeLeft <= 0 && initialTime > 0) {
+          startTimer(initialTime);
+        } else if (timeLeft > 0) {
+          isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
+          isResuming = true; 
+          const sl = document.getElementById('silent-loop'); if(sl && !isMuted) sl.play().catch(()=>{});
+          timerId = setInterval(tick, 50);
+        }
       }
       updateMediaSession();
     }
@@ -408,55 +410,20 @@
       updateMediaSession();
     }
 
-    function guessSilentMode() {
-      return new Promise((resolve) => {
-        const testAudio = document.getElementById('silent-test');
-        if (!testAudio) return resolve(false);
-        
-        const startTime = performance.now();
-        testAudio.muted = false;
-        testAudio.volume = 0.1;
-        
-        let frames = 0;
-        const check = () => {
-          frames++;
-          if (testAudio.ended || frames > 60) {
-            const duration = performance.now() - startTime;
-            // Best effort guess: if it "finishes" instantly (< 5ms), 
-            // the hardware/OS might be skipping it in silent mode.
-            // This is unreliably supported, but fulfills "Approach 2".
-            console.log('Silent test finished in:', duration, 'ms');
-            resolve(duration < 10); 
-          } else {
-            requestAnimationFrame(check);
-          }
-        };
-        
-        testAudio.play().then(() => {
-          requestAnimationFrame(check);
-        }).catch(() => resolve(false));
-      });
-    }
-
-    async function unlock() {
+    function unlock() {
       if(!voicePlayer.unlocked) {
-        // Attempt Silent Mode Check
-        const guestMuted = await guessSilentMode();
-        if (guestMuted && !localStorage.getItem('isMuted')) {
-          isMuted = true;
-          updateMuteUI();
-        }
-
         const sl = document.getElementById('silent-loop');
-        if(sl) sl.play().then(()=>sl.pause()).catch(()=>{});
-        
         const cp = document.getElementById('count-player');
-        if(cp) { cp.src = CHARACTER_DATA[activeCharId].voices.countdown[1]; cp.play().then(()=>cp.pause()).catch(()=>{}); }
-        
         const fp = document.getElementById('finish-player');
-        if(fp) { fp.src = CHARACTER_DATA[activeCharId].voices.patternD[0]; fp.play().then(()=>fp.pause()).catch(()=>{}); }
-
-        voicePlayer.play().then(() => { voicePlayer.pause(); voicePlayer.unlocked = true; }).catch(()=>{});
+        
+        // Warm up all players with silent_loop to avoid "1" playing on unlock
+        [sl, cp, fp, voicePlayer].forEach(p => {
+          if (p) {
+            if (!p.src) p.src = 'voices/kurisu/silent_loop.mp3';
+            p.play().then(()=>p.pause()).catch(()=>{});
+          }
+        });
+        voicePlayer.unlocked = true;
       }
     }
 
