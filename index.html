@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.4</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.5</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -352,8 +352,11 @@
       if (diffMs <= 0) {
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0; updateDisplay(0);
+        
+        // v4.5 REVERSION: Keep silent-loop playing to ensure background survival
         const sl = document.getElementById('silent-loop');
-        if(sl) sl.pause();
+        if(sl && !isMuted) sl.play().catch(()=>{});
+        
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -428,7 +431,6 @@
           voicePlayer
         ].forEach(p => {
           if (p) {
-            // v4.4: DO NOT overwrite if src is already set to a real file
             if (!p.src || p.src.startsWith('data:') || p.src === window.location.href) {
                 p.src = sil;
             }
@@ -455,15 +457,19 @@
 
     function updateMediaSession() {
       if ('mediaSession' in navigator) {
+        const title = isRunning ? 'CheerPump Timer' : '【終了】タップでおかわり';
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: title, 
+          artist: 'Kurisu Makise', 
+          album: 'Workout Buddy',
+          artwork: [{ src: './images/kurisu_v2_chibi.png?v=chibi', sizes: '512x512', type: 'image/png' }]
+        });
         navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused';
       }
     }
 
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: 'CheerPump Timer', artist: 'Kurisu Makise', album: 'Workout Buddy',
-        artwork: [{ src: './images/kurisu_v2_chibi.png?v=chibi', sizes: '512x512', type: 'image/png' }]
-      });
+      updateMediaSession();
       navigator.mediaSession.setActionHandler('play', toggleTimer);
       navigator.mediaSession.setActionHandler('pause', toggleTimer);
     }
