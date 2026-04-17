@@ -175,7 +175,7 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.6</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.7</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -196,9 +196,7 @@
     <!-- Hidden Audio Pool -->
     <div id="audio-pool" style="display:none;">
       <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
-      <!-- Unified player for countdowns to prevent overlapping -->
       <audio id="count-player" preload="auto"></audio>
-      <!-- Dedicated player for finish voice -->
       <audio id="finish-player" preload="auto"></audio>
     </div>
   </div>
@@ -231,7 +229,7 @@
     let lastTapTime = 0;
     let isResuming = false;      
     let lastPlayedSec = -1;      
-    let debounceTimer = null;    // For burst suppression
+    let lastVoiceTime = 0;
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
@@ -260,39 +258,37 @@
       if (type === 'countdown' && sec === lastPlayedSec) return;
       
       const char = CHARACTER_DATA[activeCharId];
+      const now = Date.now();
       
-      // Debounce logic for catch-up bursts
-      if (debounceTimer) clearTimeout(debounceTimer);
-      
-      debounceTimer = setTimeout(() => {
-        if (type === 'countdown' && sec !== null) {
-          lastPlayedSec = sec;
-          const cp = document.getElementById('count-player');
-          if (cp) {
-            cp.src = char.voices.countdown[sec];
-            cp.play().catch(()=>{});
-            return;
-          }
-        }
-        
-        if (type === 'patternD') {
-          const fp = document.getElementById('finish-player');
-          if (fp) {
-            const arr = char.voices.patternD;
-            fp.src = arr[Math.floor(Math.random() * arr.length)];
-            fp.play().catch(()=>{});
-            return;
-          }
-        }
+      if (now - lastVoiceTime < 200) return;
+      lastVoiceTime = now;
 
-        const arr = char.voices[type];
-        const path = arr[Math.floor(Math.random() * arr.length)];
-        if (path) {
-          voicePlayer.src = path;
-          voicePlayer.play().catch(()=>{});
+      if (type === 'countdown' && sec !== null) {
+        lastPlayedSec = sec;
+        const cp = document.getElementById('count-player');
+        if (cp) {
+          cp.src = char.voices.countdown[sec];
+          cp.play().catch(()=>{});
+          return;
         }
-        debounceTimer = null;
-      }, 25); // 25ms debounce to consolidate unlock bursts
+      }
+      
+      if (type === 'patternD') {
+        const fp = document.getElementById('finish-player');
+        if (fp) {
+          const arr = char.voices.patternD;
+          fp.src = arr[Math.floor(Math.random() * arr.length)];
+          fp.play().catch(()=>{});
+          return;
+        }
+      }
+
+      const arr = char.voices[type];
+      const path = arr[Math.floor(Math.random() * arr.length)];
+      if (path) {
+        voicePlayer.src = path;
+        voicePlayer.play().catch(()=>{});
+      }
     }
 
     function tick() {
@@ -321,11 +317,10 @@
         updateDisplay(timeLeft);
         
         if (!catchUp) {
-          if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
+          if (timeLeft <= 5 && timeLeft > 0) { playVoice('countdown', timeLeft); }
           else if (timeLeft === 15) { playVoice('patternB'); }
           else if ((initialTime - timeLeft) % 15 === 0 && timeLeft !== initialTime) { playVoice('patternC'); }
         } else {
-          // If caught up, just set the last played to current to avoid re-play
           lastPlayedSec = timeLeft;
         }
         isResuming = false; 
