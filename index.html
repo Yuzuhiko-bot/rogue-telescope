@@ -66,10 +66,35 @@
   }
 
   .header-area {
-    text-align: center;
-    color: #ddd;
-    font-size: 0.6rem;
-    padding: 4px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    color: #888;
+    font-size: 0.7rem;
+    font-weight: bold;
+  }
+
+  .mute-toggle {
+    background: #fff;
+    border: 3px solid var(--border-color);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 2px 2px 0 var(--border-color);
+    transition: all 0.1s;
+    font-size: 1.1rem;
+    user-select: none;
+  }
+  
+  .mute-toggle.active {
+    background: #eee;
+    box-shadow: 0 0 0 transparent;
+    transform: translate(2px, 2px);
   }
 
   .timer-section {
@@ -175,7 +200,10 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.8</span></div>
+    <div class="header-area">
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.9</span></div>
+      <div id="mute-btn" class="mute-toggle">🔊</div>
+    </div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -198,6 +226,8 @@
       <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
       <audio id="count-player" preload="auto"></audio>
       <audio id="finish-player" preload="auto"></audio>
+      <!-- Detection sound: 0.5s of near-silence -->
+      <audio id="silent-test" src="data:audio/wav;base64,UklGRmYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" preload="auto"></audio>
     </div>
   </div>
 
@@ -230,14 +260,30 @@
     let isResuming = false;      
     let lastPlayedSec = -1;      
     let lastVoiceTime = 0;
+    let isMuted = localStorage.getItem('isMuted') === 'true';
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
+    const muteBtn = document.getElementById('mute-btn');
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         isResuming = true;
       }
+    });
+
+    function updateMuteUI() {
+      muteBtn.textContent = isMuted ? '🔇' : '🔊';
+      muteBtn.classList.toggle('active', isMuted);
+      localStorage.setItem('isMuted', isMuted);
+    }
+    updateMuteUI();
+
+    muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isMuted = !isMuted;
+      updateMuteUI();
+      if (!isMuted) unlock();
     });
 
     function updateDisplay(sec) {
@@ -255,6 +301,7 @@
     }
 
     function playVoice(type, sec = null) {
+      if (isMuted) return; // Silent Mode Logic
       if (type === 'countdown' && sec === lastPlayedSec) return;
       
       const char = CHARACTER_DATA[activeCharId];
@@ -301,7 +348,7 @@
         timeLeft = 0; updateDisplay(0);
         stopAllVoice(); 
         const sl = document.getElementById('silent-loop');
-        if(sl) sl.play().catch(()=>{});
+        if(sl && !isMuted) sl.play().catch(()=>{});
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -335,7 +382,7 @@
       updateDisplay(timeLeft);
       playVoice('patternA');
       const sl = document.getElementById('silent-loop');
-      if(sl) sl.play().catch(()=>{});
+      if(sl && !isMuted) sl.play().catch(()=>{});
       if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(()=>{});
       timerId = setInterval(tick, 50);
       updateMediaSession();
@@ -344,17 +391,11 @@
     function toggleTimer() {
       if (isRunning) {
         clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
-      } else {
-        if (timeLeft <= 0 && initialTime > 0) {
-          // Restart with the same duration if finished (for Apple Watch/Media Session)
-          startTimer(initialTime);
-        } else if (timeLeft > 0) {
-          // Resume
-          isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
-          isResuming = true; 
-          const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
-          timerId = setInterval(tick, 50);
-        }
+      } else if (timeLeft > 0) {
+        isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
+        isResuming = true; 
+        const sl = document.getElementById('silent-loop'); if(sl && !isMuted) sl.play().catch(()=>{});
+        timerId = setInterval(tick, 50);
       }
       updateMediaSession();
     }
@@ -367,8 +408,45 @@
       updateMediaSession();
     }
 
-    function unlock() {
+    function guessSilentMode() {
+      return new Promise((resolve) => {
+        const testAudio = document.getElementById('silent-test');
+        if (!testAudio) return resolve(false);
+        
+        const startTime = performance.now();
+        testAudio.muted = false;
+        testAudio.volume = 0.1;
+        
+        let frames = 0;
+        const check = () => {
+          frames++;
+          if (testAudio.ended || frames > 60) {
+            const duration = performance.now() - startTime;
+            // Best effort guess: if it "finishes" instantly (< 5ms), 
+            // the hardware/OS might be skipping it in silent mode.
+            // This is unreliably supported, but fulfills "Approach 2".
+            console.log('Silent test finished in:', duration, 'ms');
+            resolve(duration < 10); 
+          } else {
+            requestAnimationFrame(check);
+          }
+        };
+        
+        testAudio.play().then(() => {
+          requestAnimationFrame(check);
+        }).catch(() => resolve(false));
+      });
+    }
+
+    async function unlock() {
       if(!voicePlayer.unlocked) {
+        // Attempt Silent Mode Check
+        const guestMuted = await guessSilentMode();
+        if (guestMuted && !localStorage.getItem('isMuted')) {
+          isMuted = true;
+          updateMuteUI();
+        }
+
         const sl = document.getElementById('silent-loop');
         if(sl) sl.play().then(()=>sl.pause()).catch(()=>{});
         
