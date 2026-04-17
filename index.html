@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.0</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.1</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -345,8 +345,7 @@
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0; updateDisplay(0);
         stopAllVoice(); 
-        const sl = document.getElementById('silent-loop');
-        if(sl && !isMuted) sl.play().catch(()=>{});
+        // DO NOT restart sl here to allow Watch to show PLAY button
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -415,8 +414,6 @@
         const sl = document.getElementById('silent-loop');
         const cp = document.getElementById('count-player');
         const fp = document.getElementById('finish-player');
-        
-        // Warm up all players with silent_loop to avoid "1" playing on unlock
         [sl, cp, fp, voicePlayer].forEach(p => {
           if (p) {
             if (!p.src) p.src = 'voices/kurisu/silent_loop.mp3';
