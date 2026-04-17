@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy: 20260417-172700 -->
+<!-- deploy: 20260417-174300 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.7</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.8</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -252,7 +252,6 @@
     let activeCharId = 'kurisu';
     const voicePlayer = new Audio();
     voicePlayer.unlocked = false;
-    let timerId = null;
     let timeLeft = 0;
     let initialTime = 0;
     let isRunning = false;
@@ -292,7 +291,6 @@
       timeDisplay.textContent = Math.floor(sec/60).toString().padStart(2,'0') + ":" + (sec%60).toString().padStart(2,'0');
     }
 
-    // v4.7 Never stop silent-loop to maintain PWA standalone persistence
     function stopAllVoice(keepCount = false) {
       voicePlayer.pause(); voicePlayer.currentTime = 0;
       if (!keepCount) {
@@ -301,7 +299,6 @@
           if(p) { p.pause(); p.currentTime = 0; }
         }
       }
-      // sl.pause() was removed here
       if (!keepCount) {
         const fv = document.getElementById('finish-voice');
         if(fv) { fv.pause(); fv.currentTime = 0; }
@@ -352,13 +349,16 @@
       }
     }
 
+    // v4.8 Main loop driven by 'timeupdate' heartbeat or manual trigger
     function tick() {
+      if (!isRunning) return; // v4.8 Guard
+
       const now = Date.now();
       const diffMs = timerEndTime - now;
       const diffSec = Math.ceil(diffMs / 1000);
 
       if (diffMs <= 0) {
-        clearInterval(timerId); timerId = null; isRunning = false;
+        isRunning = false;
         timeLeft = 0; updateDisplay(0);
         const sl = document.getElementById('silent-loop');
         if(sl) sl.play().catch(()=>{}); 
@@ -388,7 +388,7 @@
     }
 
     function startTimer(sec) {
-      clearInterval(timerId); stopAllVoice();
+      stopAllVoice();
       timeLeft = sec; initialTime = sec; isRunning = true;
       timerEndTime = Date.now() + sec * 1000;
       lastPlayedSec = -1;
@@ -398,13 +398,13 @@
       const sl = document.getElementById('silent-loop');
       if(sl) sl.play().catch(()=>{});
       if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(()=>{});
-      timerId = setInterval(tick, 50);
       updateMediaSession();
+      // tick() will be called by timeupdate event from silent-loop
     }
 
     function toggleTimer() {
       if (isRunning) {
-        clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
+        isRunning = false; stopAllVoice();
       } else {
         if (timeLeft <= 0 && initialTime > 0) {
           startTimer(initialTime);
@@ -413,14 +413,13 @@
           isResuming = true; 
           preArmVoices(activeCharId); 
           const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
-          timerId = setInterval(tick, 50);
         }
       }
       updateMediaSession();
     }
 
     function resetTimer() {
-      clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
+      isRunning = false; stopAllVoice();
       timeLeft = initialTime;
       updateDisplay(timeLeft);
       if(wakeLock) { wakeLock.release(); wakeLock = null; }
@@ -430,8 +429,14 @@
     function unlock() {
       if(!voicePlayer.unlocked) {
         const sil = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD';
-        const players = [document.getElementById('silent-loop'), voicePlayer, document.getElementById('finish-voice')];
+        const sl = document.getElementById('silent-loop');
+        const players = [sl, voicePlayer, document.getElementById('finish-voice')];
         for(let i=1; i<=5; i++) players.push(document.getElementById('cd-'+i));
+
+        // v4.8 Add Heartbeat listener
+        if (sl) {
+          sl.addEventListener('timeupdate', tick);
+        }
 
         players.forEach(p => {
           if (p) {
@@ -441,6 +446,10 @@
             p.play().then(()=>p.pause()).catch(()=>{});
           }
         });
+        
+        // Ensure silent-loop starts playing to drive the heartbeat
+        if (sl) sl.play().catch(()=>{});
+
         voicePlayer.unlocked = true;
       }
     }
@@ -468,16 +477,12 @@
           album: 'CheerPump Timer',
           artwork: [{ src: './images/kurisu_v2_chibi.png?v=chibi', sizes: '512x512', type: 'image/png' }]
         });
-        // v4.7 Always keep it 'playing' to ensure survival even when idle/finished
         navigator.mediaSession.playbackState = 'playing';
       }
     }
 
     if ('mediaSession' in navigator) {
       updateMediaSession();
-      // On Watch/LockScreen, both Action buttons will trigger toggleTimer.
-      // Since playbackState is fixed to 'playing', only the "Pause" action is usually visible.
-      // But we map both for safety.
       navigator.mediaSession.setActionHandler('play', toggleTimer);
       navigator.mediaSession.setActionHandler('pause', toggleTimer);
     }
