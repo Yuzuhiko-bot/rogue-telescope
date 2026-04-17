@@ -2,3 +2,6 @@ voices/kurisu/wav_backup/
 .gemini/
 .DS_Store
 Thumbs.db
+scratch/
+test_count_*.mp3
+images/src_icon.jpg

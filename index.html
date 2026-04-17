@@ -175,11 +175,11 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.1</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.2</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
-      <div class="tap-to-start">Tap to Start / Stop</div>
+      <div class="tap-to-start">Tap: Start/Stop | Dbl-Tap: Reset</div>
     </section>
 
     <section class="character-section">
@@ -224,9 +224,14 @@
     let isRunning = false;
     let wakeLock = null;
     let timerEndTime = 0;
+    let lastTapTime = 0;
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
+
+    function updateDisplay(sec) {
+      timeDisplay.textContent = Math.floor(sec/60).toString().padStart(2,'0') + ":" + (sec%60).toString().padStart(2,'0');
+    }
 
     function stopAllVoice() {
       voicePlayer.pause();
@@ -269,10 +274,11 @@
           clearInterval(timerId); timerId = null; isRunning = false;
           stopAllVoice(); playVoice('patternD');
           if(wakeLock) { wakeLock.release(); wakeLock = null; }
+          updateMediaSession();
         } else if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
         else if (timeLeft === 15) { playVoice('patternB'); }
-        else if ((initialTime - timeLeft) % 15 === 0) { playVoice('patternC'); }
-        timeDisplay.textContent = Math.floor(timeLeft/60).toString().padStart(2,'0') + ":" + (timeLeft%60).toString().padStart(2,'0');
+        else if ((initialTime - timeLeft) % 15 === 0 && timeLeft !== initialTime) { playVoice('patternC'); }
+        updateDisplay(timeLeft);
       }
     }
 
@@ -280,11 +286,13 @@
       clearInterval(timerId); stopAllVoice();
       timeLeft = sec; initialTime = sec; isRunning = true;
       timerEndTime = Date.now() + sec * 1000;
+      updateDisplay(timeLeft);
       playVoice('patternA');
       const sl = document.getElementById('silent-loop');
       if(sl) sl.play().catch(()=>{});
-      if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w);
+      if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(()=>{});
       timerId = setInterval(tick, 200);
+      updateMediaSession();
     }
 
     function toggleTimer() {
@@ -295,6 +303,15 @@
         const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
         timerId = setInterval(tick, 200);
       }
+      updateMediaSession();
+    }
+
+    function resetTimer() {
+      clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
+      timeLeft = initialTime;
+      updateDisplay(timeLeft);
+      if(wakeLock) { wakeLock.release(); wakeLock = null; }
+      updateMediaSession();
     }
 
     function unlock() {
@@ -307,15 +324,39 @@
       }
       if(audioCtx.state === 'suspended') audioCtx.resume();
       if(!voicePlayer.unlocked) {
-        voicePlayer.play().then(() => { voicePlayer.pause(); voicePlayer.unlocked = true; });
+        voicePlayer.play().then(() => { voicePlayer.pause(); voicePlayer.unlocked = true; }).catch(()=>{});
       }
     }
 
-    buttons.forEach(b => b.addEventListener('click', () => { unlock(); startTimer(parseInt(b.dataset.time)); }));
+    buttons.forEach(b => b.addEventListener('click', (e) => { 
+      e.stopPropagation();
+      unlock(); 
+      startTimer(parseInt(b.dataset.time)); 
+    }));
+
     document.body.addEventListener('click', (e) => {
-      if(e.target.tagName === 'BUTTON') return;
-      unlock(); toggleTimer();
+      const now = Date.now();
+      const delay = now - lastTapTime;
+      lastTapTime = now;
+
+      if (delay < 300 && delay > 0) {
+        // Double tap
+        resetTimer();
+      } else {
+        // Single tap (wait slightly to differentiate)
+        setTimeout(() => {
+          if (Date.now() - lastTapTime >= 280) {
+             unlock(); toggleTimer();
+          }
+        }, 300);
+      }
     });
+
+    function updateMediaSession() {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused';
+      }
+    }
 
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
