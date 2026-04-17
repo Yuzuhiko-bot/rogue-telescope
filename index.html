@@ -227,7 +227,7 @@
   <div class="tap-area" id="tap-area"></div>
 
   <div class="app-container">
-    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.5</span></div>
+    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.9</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -583,6 +583,49 @@
       }
       lastTap = now;
     });
+
+    /**
+     * 【Apple Watch連携機能】
+     * Media Session APIを使って、Watchの「再生中」画面からタイマーを操作・表示する
+     */
+    if ('mediaSession' in navigator) {
+      
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'インターバルタイマー',
+        artist: '牧瀬紅莉栖',
+        album: 'モチベUPタイマー',
+        artwork: [
+          { src: './images/kurisu_v2_chibi.png?v=chibi', sizes: '512x512', type: 'image/png' }
+        ]
+      });
+
+      // Watchの「再生」ボタン
+      navigator.mediaSession.setActionHandler('play', () => {
+        // もしタイマーが0なら（終わっていたら）、前回と同じ秒数で再スタート
+        if (timeLeft <= 0 && initialTime > 0) {
+          startTimer(initialTime);
+        } else if (!isRunning) {
+          toggleTimer(); 
+        }
+      });
+
+      // Watchの「一時停止」ボタン
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (isRunning) toggleTimer();
+      });
+
+      // Watchの「前の曲へ」ボタン：強制リセット
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        resetTimer();
+      });
+
+      // Watchの「次の曲へ」ボタン：前回と同じ秒数で新しくタイマーを開始
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        if (initialTime > 0) {
+          startTimer(initialTime); // 前回セットした秒数(initialTime)で再スタート
+        }
+      });
+    }
   </script>
 </body>
 </html>
