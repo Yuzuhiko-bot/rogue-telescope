@@ -213,7 +213,7 @@
   <div class="tap-area" id="tap-area"></div>
 
   <div class="app-container">
-    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.0</span></div>
+    <div class="header-area">INTERVAL TIMER <span style="font-size: 0.8em; opacity: 0.7;">v2.1</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -275,6 +275,11 @@
 
     let activeCharId = 'kurisu';
     const voicePlayer = new Audio(); // iOS対策：シングルトンAudioプレイヤー
+    
+    // Web Audio API 設定（低遅延用）
+    let audioCtx = null;
+    let audioBuffers = {}; // プリロードされた音声を保持
+    
     let timerId = null;
     let timeLeft = 0;
     let initialTime = 0; // 開始時の秒数を保持
@@ -284,6 +289,17 @@
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
     const characterImg = document.getElementById('character-img');
+
+    /**
+     * Web Audio APIを使用した低遅延再生
+     */
+    function playBuffer(name) {
+      if (!audioCtx || !audioBuffers[name]) return;
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffers[name];
+      source.connect(audioCtx.destination);
+      source.start(0);
+    }
 
     /**
      * 【要件2：playVoice関数のアップデート】
@@ -296,7 +312,12 @@
       let voicePath = '';
 
       if (patternType === 'countdown' && second !== null) {
-        // カウントダウン用の単一音声
+        // カウントダウン：プリロード済みバッファがあればWeb Audio APIで即時再生
+        const bufferName = `countdown_${second}`;
+        if (audioBuffers[bufferName]) {
+          playBuffer(bufferName);
+          return;
+        }
         voicePath = char.voices.countdown[second];
       } else if (char.voices[patternType]) {
         // A, B, C, D パターンの配列からランダムに選択
@@ -474,9 +495,41 @@
     }
 
     /**
+     * 指定されたURLの音声をデコードして保存する
+     */
+    async function preloadBuff(url, name) {
+      try {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        audioBuffers[name] = audioBuffer;
+        console.log(`Preloaded: ${name}`);
+      } catch (e) {
+        console.log(`Failed to preload: ${url}`, e);
+      }
+    }
+
+    /**
      * iOSでの音声再生をアンロックするための無音再生処理
      */
     function unlockAudio() {
+      // AudioContextの初期化とアンロック
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // カウントダウン音声のプリロード（非同期）
+        const char = CHARACTER_DATA[activeCharId];
+        if (char && char.voices && char.voices.countdown) {
+          Object.keys(char.voices.countdown).forEach(key => {
+            preloadBuff(char.voices.countdown[key], `countdown_${key}`);
+          });
+        }
+      }
+      
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
       voicePlayer.play().then(() => {
         voicePlayer.pause();
       }).catch(e => console.log("Audio unlock failed:", e));
