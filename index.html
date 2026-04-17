@@ -175,7 +175,7 @@
 </head>
 <body>
   <div class="app-container">
-    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.4</span></div>
+    <div class="header-area">CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v3.5</span></div>
 
     <section class="timer-section">
       <div class="timer-display" id="time-display-text">00:00</div>
@@ -231,34 +231,41 @@
     let wakeLock = null;
     let timerEndTime = 0;
     let lastTapTime = 0;
+    let isResuming = false;      // Flag for visibility change
+    let lastPlayedSec = -1;      // Prevent duplicated plays
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        isResuming = true;
+      }
+    });
 
     function updateDisplay(sec) {
       timeDisplay.textContent = Math.floor(sec/60).toString().padStart(2,'0') + ":" + (sec%60).toString().padStart(2,'0');
     }
 
     function stopAllVoice() {
-      // Pause general voice player
       voicePlayer.pause();
       voicePlayer.currentTime = 0;
-      
-      // Stop all background/pooled audio
       for(let i=1; i<=5; i++) {
         const el = document.getElementById(`count-${i}`);
         if(el) { el.pause(); el.currentTime = 0; }
       }
       const finishEl = document.getElementById('finish-voice');
       if(finishEl) { finishEl.pause(); finishEl.currentTime = 0; }
-
       const sl = document.getElementById('silent-loop');
       if(sl) sl.pause();
     }
 
     function playVoice(type, sec = null) {
+      // Prevent double play in the same second
+      if (type === 'countdown' && sec === lastPlayedSec) return;
+      if (type === 'countdown') lastPlayedSec = sec;
+
       const char = CHARACTER_DATA[activeCharId];
-      
       if (type === 'countdown' && sec !== null) {
         const el = document.getElementById(`count-${sec}`);
         if (el) { el.play().catch(()=>{}); return; }
@@ -267,8 +274,6 @@
       if (type === 'patternD') {
         const el = document.getElementById('finish-voice');
         if (el) {
-          // Shuffle randomly for Pattern D from pool if multiple exist, 
-          // but for now we have one dedicated element to ensure background play.
           const arr = char.voices.patternD;
           el.src = arr[Math.floor(Math.random() * arr.length)];
           el.play().catch(()=>{});
@@ -276,7 +281,6 @@
         }
       }
 
-      // Standard randomized patterns (A, B, C) via singleton
       const arr = char.voices[type];
       const path = arr[Math.floor(Math.random() * arr.length)];
       if (path) {
@@ -294,24 +298,31 @@
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0;
         updateDisplay(0);
-        // Important: preserve silent-loop if we want to keep process alive, 
-        // but here we stop everything and play finish voice.
         stopAllVoice(); 
         const sl = document.getElementById('silent-loop');
-        if(sl) sl.play().catch(()=>{}); // Resume loop to keep process alive while finish voice plays? 
-        // No, finish voice itself will keep it alive for its duration.
+        if(sl) sl.play().catch(()=>{});
+        // On resume, if we missed the end, we still play the finish voice once.
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
+        isResuming = false;
         return;
       }
 
+      const hasJumped = (Math.abs(diffSec - timeLeft) > 1);
+
       if (diffSec !== timeLeft) {
+        const catchUp = (isResuming || hasJumped);
         timeLeft = diffSec;
-        if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
-        else if (timeLeft === 15) { playVoice('patternB'); }
-        else if ((initialTime - timeLeft) % 15 === 0 && timeLeft !== initialTime) { playVoice('patternC'); }
         updateDisplay(timeLeft);
+        
+        // Skip voice if we just resumed/jumped to prevent burst
+        if (!catchUp) {
+          if (timeLeft <= 5) { playVoice('countdown', timeLeft); }
+          else if (timeLeft === 15) { playVoice('patternB'); }
+          else if ((initialTime - timeLeft) % 15 === 0 && timeLeft !== initialTime) { playVoice('patternC'); }
+        }
+        isResuming = false; // Reset flag after one catch-up tick
       }
     }
 
@@ -319,6 +330,7 @@
       clearInterval(timerId); stopAllVoice();
       timeLeft = sec; initialTime = sec; isRunning = true;
       timerEndTime = Date.now() + sec * 1000;
+      lastPlayedSec = -1;
       updateDisplay(timeLeft);
       playVoice('patternA');
       const sl = document.getElementById('silent-loop');
@@ -333,6 +345,7 @@
         clearInterval(timerId); timerId = null; isRunning = false; stopAllVoice();
       } else if (timeLeft > 0) {
         isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
+        isResuming = true; // Mark as resuming to sync display without burst
         const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
         timerId = setInterval(tick, 50);
       }
@@ -349,17 +362,14 @@
 
     function unlock() {
       if(!voicePlayer.unlocked) {
-        // Unlock all audio elements in the pool for iOS
         const sl = document.getElementById('silent-loop');
         if(sl) sl.play().then(()=>sl.pause()).catch(()=>{});
-        
         for(let i=1; i<=5; i++) {
           const el = document.getElementById(`count-${i}`);
           if(el) el.play().then(()=>el.pause()).catch(()=>{});
         }
         const finishEl = document.getElementById('finish-voice');
         if(finishEl) finishEl.play().then(()=>finishEl.pause()).catch(()=>{});
-
         voicePlayer.play().then(() => { 
           voicePlayer.pause(); 
           voicePlayer.unlocked = true; 
@@ -377,12 +387,9 @@
       const now = Date.now();
       const delay = now - lastTapTime;
       lastTapTime = now;
-
       if (delay < 300 && delay > 0) {
-        // Double tap
         resetTimer();
       } else {
-        // Single tap (wait slightly to differentiate)
         setTimeout(() => {
           if (Date.now() - lastTapTime >= 280) {
              unlock(); toggleTimer();
