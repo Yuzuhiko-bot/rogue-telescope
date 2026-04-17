@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy: 20260417-124500 -->
+<!-- deploy: 20260417-172700 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.6</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.7</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -221,7 +221,7 @@
       <button class="preset-btn" data-time="120">120<span class="btn-unit">SEC</span></button>
     </section>
 
-    <!-- Hidden Audio Pool v4.6 Dedicated Players -->
+    <!-- Hidden Audio Pool -->
     <div id="audio-pool" style="display:none;">
       <audio id="silent-loop" loop src="voices/kurisu/silent_loop.mp3"></audio>
       <audio id="cd-5" preload="auto"></audio>
@@ -292,7 +292,7 @@
       timeDisplay.textContent = Math.floor(sec/60).toString().padStart(2,'0') + ":" + (sec%60).toString().padStart(2,'0');
     }
 
-    // v4.6 Stop all players except for the tail of countdown/finish
+    // v4.7 Never stop silent-loop to maintain PWA standalone persistence
     function stopAllVoice(keepCount = false) {
       voicePlayer.pause(); voicePlayer.currentTime = 0;
       if (!keepCount) {
@@ -301,16 +301,13 @@
           if(p) { p.pause(); p.currentTime = 0; }
         }
       }
-      const sl = document.getElementById('silent-loop');
-      if(sl) sl.pause();
-      // Keep finish-voice playing if it was just started
+      // sl.pause() was removed here
       if (!keepCount) {
         const fv = document.getElementById('finish-voice');
         if(fv) { fv.pause(); fv.currentTime = 0; }
       }
     }
 
-    // v4.6 Pre-arm countdown and finish voices for zero-latency playback
     function preArmVoices(charId) {
       const char = CHARACTER_DATA[charId];
       if(!char) return;
@@ -336,7 +333,6 @@
       if (now - lastVoiceTime < 200) return;
       lastVoiceTime = now;
 
-      // v4.6 Use pre-armed players for countdown and finish
       if (type === 'countdown' && sec !== null) {
         lastPlayedSec = sec;
         const cp = document.getElementById('cd-'+sec);
@@ -365,7 +361,7 @@
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0; updateDisplay(0);
         const sl = document.getElementById('silent-loop');
-        if(sl && !isMuted) sl.play().catch(()=>{});
+        if(sl) sl.play().catch(()=>{}); 
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -397,10 +393,10 @@
       timerEndTime = Date.now() + sec * 1000;
       lastPlayedSec = -1;
       updateDisplay(timeLeft);
-      preArmVoices(activeCharId); // v4.6 Load voices immediately
+      preArmVoices(activeCharId); 
       playVoice('patternA');
       const sl = document.getElementById('silent-loop');
-      if(sl && !isMuted) sl.play().catch(()=>{});
+      if(sl) sl.play().catch(()=>{});
       if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(()=>{});
       timerId = setInterval(tick, 50);
       updateMediaSession();
@@ -415,8 +411,8 @@
         } else if (timeLeft > 0) {
           isRunning = true; timerEndTime = Date.now() + timeLeft * 1000;
           isResuming = true; 
-          preArmVoices(activeCharId); // Ensure armed
-          const sl = document.getElementById('silent-loop'); if(sl && !isMuted) sl.play().catch(()=>{});
+          preArmVoices(activeCharId); 
+          const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
           timerId = setInterval(tick, 50);
         }
       }
@@ -465,19 +461,23 @@
 
     function updateMediaSession() {
       if ('mediaSession' in navigator) {
-        const title = isRunning ? 'CheerPump Timer' : '【終了】タップでおかわり';
+        const title = isRunning ? 'Workout Timer' : '【終了】タップでおかわり';
         navigator.mediaSession.metadata = new MediaMetadata({
           title: title, 
           artist: 'Kurisu Makise', 
-          album: 'Workout Buddy',
+          album: 'CheerPump Timer',
           artwork: [{ src: './images/kurisu_v2_chibi.png?v=chibi', sizes: '512x512', type: 'image/png' }]
         });
-        navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused';
+        // v4.7 Always keep it 'playing' to ensure survival even when idle/finished
+        navigator.mediaSession.playbackState = 'playing';
       }
     }
 
     if ('mediaSession' in navigator) {
       updateMediaSession();
+      // On Watch/LockScreen, both Action buttons will trigger toggleTimer.
+      // Since playbackState is fixed to 'playing', only the "Pause" action is usually visible.
+      // But we map both for safety.
       navigator.mediaSession.setActionHandler('play', toggleTimer);
       navigator.mediaSession.setActionHandler('pause', toggleTimer);
     }
