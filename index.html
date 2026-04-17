@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.3</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.4</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -260,7 +260,7 @@
     let lastPlayedSec = -1;      
     let lastVoiceTime = 0;
     let isMuted = localStorage.getItem('isMuted') === 'true';
-    let countIdx = 0; // v4.3 rotate player
+    let countIdx = 0; 
 
     const timeDisplay = document.getElementById('time-display-text');
     const buttons = document.querySelectorAll('.preset-btn');
@@ -316,7 +316,6 @@
 
       if (type === 'countdown' && sec !== null) {
         lastPlayedSec = sec;
-        // v4.3 rotate between count-player-a and count-player-b
         const pid = countIdx % 2 === 0 ? 'count-player-a' : 'count-player-b';
         const cp = document.getElementById(pid);
         countIdx++;
@@ -429,7 +428,10 @@
           voicePlayer
         ].forEach(p => {
           if (p) {
-            p.src = sil;
+            // v4.4: DO NOT overwrite if src is already set to a real file
+            if (!p.src || p.src.startsWith('data:') || p.src === window.location.href) {
+                p.src = sil;
+            }
             p.play().then(()=>p.pause()).catch(()=>{});
           }
         });
