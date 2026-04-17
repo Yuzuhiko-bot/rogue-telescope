@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy: 20260417-175300 -->
+<!-- deploy: 20260417-180000 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.9</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.10</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -252,6 +252,7 @@
     let activeCharId = 'kurisu';
     const voicePlayer = new Audio();
     voicePlayer.unlocked = false;
+    let timerId = null; // v4.10 Re-introduced
     let timeLeft = 0;
     let initialTime = 0;
     let isRunning = false;
@@ -349,6 +350,7 @@
       }
     }
 
+    // v4.10 Hybrid Logic: tick() is safe for absolute time calculation
     function tick() {
       if (!isRunning) return; 
 
@@ -357,6 +359,7 @@
       const diffSec = Math.ceil(diffMs / 1000);
 
       if (diffMs <= 0) {
+        clearInterval(timerId); timerId = null; // v4.10 Clear interval
         isRunning = false;
         timeLeft = 0; updateDisplay(0);
         const sl = document.getElementById('silent-loop');
@@ -387,6 +390,7 @@
     }
 
     function startTimer(sec) {
+      clearInterval(timerId); timerId = null; // v4.10 Reset interval
       stopAllVoice();
       timeLeft = sec; initialTime = sec; isRunning = true;
       timerEndTime = Date.now() + sec * 1000;
@@ -397,11 +401,13 @@
       const sl = document.getElementById('silent-loop');
       if(sl) sl.play().catch(()=>{});
       if('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(()=>{});
+      timerId = setInterval(tick, 100); // v4.10 Re-introduced for foreground stability
       updateMediaSession();
     }
 
     function toggleTimer() {
       if (isRunning) {
+        clearInterval(timerId); timerId = null; // v4.10
         isRunning = false; stopAllVoice();
       } else {
         if (timeLeft <= 0 && initialTime > 0) {
@@ -411,12 +417,12 @@
           isResuming = true; 
           preArmVoices(activeCharId); 
           const sl = document.getElementById('silent-loop'); if(sl) sl.play().catch(()=>{});
+          timerId = setInterval(tick, 100); // v4.10
         }
       }
       updateMediaSession();
     }
 
-    // v4.9 Optimized: Now Re-starts immediately from full duration
     function restartFromInitial() {
       if (initialTime > 0) {
         unlock();
@@ -425,6 +431,7 @@
     }
 
     function resetTimer() {
+      clearInterval(timerId); timerId = null; // v4.10
       isRunning = false; stopAllVoice();
       timeLeft = initialTime;
       updateDisplay(timeLeft);
@@ -440,7 +447,8 @@
         for(let i=1; i<=5; i++) players.push(document.getElementById('cd-'+i));
 
         if (sl) {
-          sl.addEventListener('timeupdate', tick);
+          sl.loop = true; // explicitly re-assert loop
+          sl.addEventListener('timeupdate', tick); // Keep heartbeat for background
         }
 
         players.forEach(p => {
@@ -448,10 +456,14 @@
             if (!p.src || p.src.startsWith('data:') || p.src === window.location.href) {
                 p.src = sil;
             }
-            p.play().then(()=>p.pause()).catch(()=>{});
+            // v4.10 Hybrid fix: Only pause the non-loopers
+            p.play().then(()=>{
+              if (p !== sl) p.pause();
+            }).catch(()=>{});
           }
         });
         
+        // Ensure silent-loop is playing to drive the backup heartbeat
         if (sl) sl.play().catch(()=>{});
         voicePlayer.unlocked = true;
       }
@@ -466,7 +478,6 @@
       const delay = now - lastTapTime;
       lastTapTime = now;
       if (delay < 300 && delay > 0) { 
-        // v4.9 Modified: Double-tap = Restart
         restartFromInitial();
       }
       else {
