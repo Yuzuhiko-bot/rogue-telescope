@@ -201,7 +201,7 @@
 <body>
   <div class="app-container">
     <div class="header-area">
-      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.1</span></div>
+      <div>CHEER-PUMP TIMER <span style="font-size: 0.8em; opacity: 0.7;">v4.2</span></div>
       <div id="mute-btn" class="mute-toggle">🔊</div>
     </div>
 
@@ -288,10 +288,10 @@
       timeDisplay.textContent = Math.floor(sec/60).toString().padStart(2,'0') + ":" + (sec%60).toString().padStart(2,'0');
     }
 
-    function stopAllVoice() {
+    function stopAllVoice(keepCount = false) {
       voicePlayer.pause(); voicePlayer.currentTime = 0;
       const cp = document.getElementById('count-player');
-      if(cp) { cp.pause(); cp.currentTime = 0; }
+      if(cp && !keepCount) { cp.pause(); cp.currentTime = 0; }
       const fp = document.getElementById('finish-player');
       if(fp) { fp.pause(); fp.currentTime = 0; }
       const sl = document.getElementById('silent-loop');
@@ -344,8 +344,11 @@
       if (diffMs <= 0) {
         clearInterval(timerId); timerId = null; isRunning = false;
         timeLeft = 0; updateDisplay(0);
-        stopAllVoice(); 
-        // DO NOT restart sl here to allow Watch to show PLAY button
+        
+        // v4.2: Stop only silent-loop to avoid cutting off countdown "1"
+        const sl = document.getElementById('silent-loop');
+        if(sl) sl.pause();
+        
         playVoice('patternD');
         if(wakeLock) { wakeLock.release(); wakeLock = null; }
         updateMediaSession();
@@ -411,12 +414,16 @@
 
     function unlock() {
       if(!voicePlayer.unlocked) {
-        const sl = document.getElementById('silent-loop');
-        const cp = document.getElementById('count-player');
-        const fp = document.getElementById('finish-player');
-        [sl, cp, fp, voicePlayer].forEach(p => {
+        // v4.2: Use forced silent data URI to warm up, clearing any leftover audio src
+        const sil = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD';
+        [
+          document.getElementById('silent-loop'),
+          document.getElementById('count-player'),
+          document.getElementById('finish-player'),
+          voicePlayer
+        ].forEach(p => {
           if (p) {
-            if (!p.src) p.src = 'voices/kurisu/silent_loop.mp3';
+            p.src = sil;
             p.play().then(()=>p.pause()).catch(()=>{});
           }
         });
